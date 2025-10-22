@@ -2,38 +2,195 @@
 
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.control.*?>
+<?import javafx.geometry.Insets?>
 
 <BorderPane xmlns:fx="http://javafx.com/fxml"
             fx:controller="controller.AdminController"
-            prefWidth="800" prefHeight="500">
+            prefWidth="1000" prefHeight="700"
+            style="-fx-background-color: #f5f5f5;">
 
+    <!-- TOP TOOLBAR -->
     <top>
-        <Label text="Admin Dashboard"
-               BorderPane.alignment="CENTER"
-               style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-padding: 10;"/>
+        <VBox>
+            <HBox alignment="CENTER" spacing="10"
+                  style="-fx-background-color: #2196F3; -fx-padding: 15;">
+                <Label text="Admin Dashboard"
+                       style="-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: white;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button text="Logout" onAction="#handleLogout"
+                        style="-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 15;"/>
+            </HBox>
+
+            <ToolBar style="-fx-background-color: #e3f2fd; -fx-padding: 10;">
+                <Button text="Generate Text Report" onAction="#generateTextReport"
+                        style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                <Button text="Generate JSON Report" onAction="#generateJsonReport"
+                        style="-fx-background-color: #FF9800; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                <Separator orientation="VERTICAL"/>
+                <Label text="Auto-backup: Every 30s | Auto-refresh: Every 30s"
+                       style="-fx-font-size: 11px; -fx-text-fill: #666;"/>
+            </ToolBar>
+        </VBox>
     </top>
 
+    <!-- CENTER CONTENT -->
     <center>
-        <SplitPane>
-            <items>
-                <VBox spacing="10" style="-fx-padding: 10;">
-                    <Label text="Rooms"/>
-                    <TableView fx:id="roomTable" prefHeight="200" prefWidth="350"/>
-                    <HBox spacing="10">
-                        <Button text="Add Room" onAction="#addRoom"/>
-                        <Button text="Delete Room" onAction="#deleteRoom"/>
+        <TabPane tabClosingPolicy="UNAVAILABLE" style="-fx-padding: 10;">
+
+            <!-- ROOMS TAB -->
+            <Tab text="Rooms">
+                <VBox spacing="10" style="-fx-padding: 15;">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Room Management"
+                               style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="Add Room" onAction="#addRoom"
+                                style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 15;"/>
+                        <Button text="Edit Room" onAction="#editRoom"
+                                style="-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 15;"/>
+                        <Button text="Delete Room" onAction="#deleteRoom"
+                                style="-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 15;"/>
+                    </HBox>
+
+                    <TableView fx:id="roomTable" VBox.vgrow="ALWAYS"
+                               style="-fx-background-color: white; -fx-border-color: #ddd; -fx-border-width: 1;">
+                        <columns>
+                            <TableColumn fx:id="roomNameColumn" text="Room Name" prefWidth="400">
+                                <cellValueFactory>
+                                    <javafx.scene.control.cell.PropertyValueFactory property="name" />
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn fx:id="roomStatusColumn" text="Status" prefWidth="350">
+                                <cellValueFactory>
+                                    <javafx.scene.control.cell.PropertyValueFactory property="status" />
+                                </cellValueFactory>
+                            </TableColumn>
+                        </columns>
+                        <placeholder>
+                            <Label text="No rooms available. Click 'Add Room' to create one."
+                                   style="-fx-text-fill: #999;"/>
+                        </placeholder>
+                    </TableView>
+
+                    <!-- Live Preview Section -->
+                    <VBox spacing="5" style="-fx-background-color: #fff3cd; -fx-padding: 10; -fx-border-color: #ffc107; -fx-border-width: 1;">
+                        <Label text="Live Preview (type in Add/Edit dialog to see preview)"
+                               style="-fx-font-weight: bold; -fx-font-size: 12px;"/>
+                        <HBox spacing="10">
+                            <Label text="Name:"/>
+                            <TextField fx:id="roomNameField" promptText="Enter room name" prefWidth="200"/>
+                            <Label text="Status:"/>
+                            <TextField fx:id="roomStatusField" promptText="Enter status" prefWidth="150"/>
+                        </HBox>
+                        <Label fx:id="roomPreviewLabel" text="Preview: (empty)"
+                               style="-fx-font-style: italic; -fx-text-fill: #666;"/>
+                    </VBox>
+                </VBox>
+            </Tab>
+
+            <!-- USERS TAB -->
+            <Tab text="Users">
+                <VBox spacing="10" style="-fx-padding: 15;">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="User Management"
+                               style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="Approve User" onAction="#approveUser"
+                                style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 15;"/>
+                        <Button text="Remove User" onAction="#removeUser"
+                                style="-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 15;"/>
+                    </HBox>
+
+                    <TableView fx:id="userTable" VBox.vgrow="ALWAYS"
+                               style="-fx-background-color: white; -fx-border-color: #ddd; -fx-border-width: 1;">
+                        <columns>
+                            <TableColumn fx:id="userNameColumn" text="Username" prefWidth="250">
+                                <cellValueFactory>
+                                    <javafx.scene.control.cell.PropertyValueFactory property="username" />
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn fx:id="userEmailColumn" text="Email" prefWidth="300">
+                                <cellValueFactory>
+                                    <javafx.scene.control.cell.PropertyValueFactory property="email" />
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn fx:id="userRoleColumn" text="Role" prefWidth="200">
+                                <cellValueFactory>
+                                    <javafx.scene.control.cell.PropertyValueFactory property="role" />
+                                </cellValueFactory>
+                            </TableColumn>
+                        </columns>
+                        <placeholder>
+                            <Label text="No users found."
+                                   style="-fx-text-fill: #999;"/>
+                        </placeholder>
+                    </TableView>
+
+                    <Label text="Note: Admin users cannot be removed."
+                           style="-fx-text-fill: #666; -fx-font-size: 12px; -fx-font-style: italic;"/>
+                </VBox>
+            </Tab>
+
+            <!-- RESERVATIONS TAB -->
+            <Tab text="Reservations">
+                <VBox spacing="10" style="-fx-padding: 15;">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Reservation Management"
+                               style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
+                    </HBox>
+
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Double-click any reservation to view details"
+                               style="-fx-text-fill: #2196F3; -fx-font-size: 12px; -fx-font-style: italic;"/>
+                    </HBox>
+
+                    <TableView fx:id="reservationTable" VBox.vgrow="ALWAYS"
+                               style="-fx-background-color: white; -fx-border-color: #ddd; -fx-border-width: 1;">
+                        <columns>
+                            <TableColumn fx:id="resUsernameColumn" text="Username" prefWidth="250">
+                                <cellValueFactory>
+                                    <javafx.scene.control.cell.PropertyValueFactory property="username" />
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn fx:id="resRoomColumn" text="Room Name" prefWidth="300">
+                                <cellValueFactory>
+                                    <javafx.scene.control.cell.PropertyValueFactory property="roomName" />
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn fx:id="resDateColumn" text="Date" prefWidth="200">
+                                <cellValueFactory>
+                                    <javafx.scene.control.cell.PropertyValueFactory property="date" />
+                                </cellValueFactory>
+                            </TableColumn>
+                        </columns>
+                        <placeholder>
+                            <Label text="No reservations found."
+                                   style="-fx-text-fill: #999;"/>
+                        </placeholder>
+                    </TableView>
+
+                    <HBox spacing="10" alignment="CENTER_LEFT"
+                          style="-fx-background-color: #fff3cd; -fx-padding: 10; -fx-border-color: #ffc107; -fx-border-width: 1;">
+                        <Label text="Orange = Overdue Reservations (2024 or earlier)"
+                               style="-fx-font-weight: bold; -fx-font-size: 12px;"/>
                     </HBox>
                 </VBox>
+            </Tab>
 
-                <VBox spacing="10" style="-fx-padding: 10;">
-                    <Label text="Users"/>
-                    <TableView fx:id="userTable" prefHeight="200" prefWidth="350"/>
-                </VBox>
-            </items>
-        </SplitPane>
+        </TabPane>
     </center>
 
+    <!-- BOTTOM STATUS BAR -->
     <bottom>
-        <Label fx:id="statusLabel" text="Status: Ready" style="-fx-padding: 10;"/>
+        <HBox alignment="CENTER_LEFT" spacing="10"
+              style="-fx-background-color: #e0e0e0; -fx-padding: 10;">
+            <Label text="Status:"/>
+            <Label fx:id="statusLabel" text="Ready"
+                   style="-fx-font-weight: bold;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label text="Room Reservation System v2.0"
+                   style="-fx-text-fill: #666; -fx-font-size: 11px;"/>
+        </HBox>
     </bottom>
+
 </BorderPane>
