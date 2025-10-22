@@ -1,0 +1,32 @@
+[
+  {
+    "username": "admin1",
+    "password": "admin123",
+    "role": "admin",
+    "email": "admin1@roomreserve.com"
+  },
+  {
+    "username": "admin2",
+    "password": "supersecure",
+    "role": "admin",
+    "email": "admin2@roomreserve.com"
+  },
+  {
+    "username": "johndoe",
+    "password": "password123",
+    "role": "user",
+    "email": "johndoe@gmail.com"
+  },
+  {
+    "username": "janedoe",
+    "password": "mypassword",
+    "role": "user",
+    "email": "janedoe@gmail.com"
+  },
+  {
+    "username": "mark123",
+    "password": "roomaccess",
+    "role": "user",
+    "email": "mark123@yahoo.com"
+  }
+]
