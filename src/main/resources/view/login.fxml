@@ -1,86 +1,79 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.layout.*?>
-<?import javafx.scene.control.*?>
-<?import javafx.geometry.Insets?>
+<?import javafx.scene.PerspectiveCamera?>
+<?import javafx.scene.control.Accordion?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Hyperlink?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.VBox?>
 
-<AnchorPane xmlns:fx="http://javafx.com/fxml"
-            fx:controller="controller.LoginController"
-            prefWidth="450" prefHeight="400"
-            style="-fx-background-color: #f5f5f5;">
+<AnchorPane prefHeight="803.0" prefWidth="703.0" style="-fx-background-color: #f5f5f5;" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="controller.LoginController">
 
     <children>
 
         <!-- LOGIN SECTION -->
-        <VBox fx:id="loginPane" spacing="15" layoutX="75" layoutY="50"
-              style="-fx-padding: 20; -fx-background-color: white; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 2);">
-
-            <Label text="Room Reservation Login"
-                   style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #333;" />
+        <VBox fx:id="loginPane" layoutX="62.0" layoutY="38.0" prefHeight="440.0" prefWidth="396.0" spacing="15" style="-fx-padding: 20 20 20 20; -fx-background-color: white; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 2);">
+            <AnchorPane />
+            <AnchorPane>
+                <children>
+                    <ImageView fitHeight="176.0" fitWidth="356.0" layoutX="6.0" layoutY="-25.0">
+                        <image>
+                            <Image url="@/images/CONFERENCE.png" />
+                        </image>
+                    </ImageView>
+                </children>
+            </AnchorPane>
+            <Accordion />
 
             <VBox spacing="5">
-                <Label text="Email:" style="-fx-font-weight: bold;"/>
-                <TextField fx:id="emailField" prefWidth="280"
-                           promptText="Enter your email"
-                           style="-fx-padding: 8; -fx-font-size: 13px;"/>
+                <Label style="-fx-font-weight: bold;" text="Email:" />
+                <TextField fx:id="emailField" prefWidth="280" promptText="Enter your email" style="-fx-padding: 8; -fx-font-size: 13px;" />
             </VBox>
 
             <VBox spacing="5">
-                <Label text="Password:" style="-fx-font-weight: bold;"/>
-                <PasswordField fx:id="passwordField" prefWidth="280"
-                               promptText="Enter your password"
-                               style="-fx-padding: 8; -fx-font-size: 13px;"/>
+                <Label style="-fx-font-weight: bold;" text="Password:" />
+                <PasswordField fx:id="passwordField" prefWidth="280" promptText="Enter your password" style="-fx-padding: 8; -fx-font-size: 13px;" />
             </VBox>
 
-            <Button fx:id="loginButton" text="Login" onAction="#handleLogin"
-                    prefWidth="280" prefHeight="35"
-                    style="-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold; -fx-background-radius: 5;"/>
+            <Button fx:id="loginButton" onAction="#handleLogin" prefHeight="35" prefWidth="280" style="-fx-background-color: #a51618; -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold; -fx-background-radius: 5;" text="Login" textFill="WHITE" />
 
-            <Label fx:id="statusLabel" textFill="gray" wrapText="true" prefWidth="280"
-                   style="-fx-font-size: 12px;"/>
+            <Hyperlink onAction="#switchToRegister" style="-fx-font-size: 12px;" text="Don't have an account? Sign up" />
 
-            <Hyperlink text="Don't have an account? Sign up" onAction="#switchToRegister"
-                       style="-fx-font-size: 12px;"/>
+            <Label style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #333;" textAlignment="CENTER" />
         </VBox>
 
         <!-- SIGNUP SECTION -->
-        <VBox fx:id="registerPane" spacing="15" layoutX="75" layoutY="40" visible="false"
-              style="-fx-padding: 20; -fx-background-color: white; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 2);">
+        <VBox fx:id="registerPane" layoutX="75" layoutY="40" spacing="15" style="-fx-padding: 20; -fx-background-color: white; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 2);" visible="false">
 
-            <Label text="Create an Account"
-                   style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #333;" />
+            <Label style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #333;" text="Create an Account" />
 
             <VBox spacing="5">
-                <Label text="Username:" style="-fx-font-weight: bold;"/>
-                <TextField fx:id="usernameField" prefWidth="280"
-                           promptText="Choose a username (min 3 chars)"
-                           style="-fx-padding: 8; -fx-font-size: 13px;"/>
+                <Label style="-fx-font-weight: bold;" text="Username:" />
+                <TextField fx:id="usernameField" prefWidth="280" promptText="Choose a username (min 3 chars)" style="-fx-padding: 8; -fx-font-size: 13px;" />
             </VBox>
 
             <VBox spacing="5">
-                <Label text="Email:" style="-fx-font-weight: bold;"/>
-                <TextField fx:id="signupEmailField" prefWidth="280"
-                           promptText="Enter your email"
-                           style="-fx-padding: 8; -fx-font-size: 13px;"/>
+                <Label style="-fx-font-weight: bold;" text="Email:" />
+                <TextField fx:id="signupEmailField" prefWidth="280" promptText="Enter your email" style="-fx-padding: 8; -fx-font-size: 13px;" />
             </VBox>
 
             <VBox spacing="5">
-                <Label text="Password:" style="-fx-font-weight: bold;"/>
-                <PasswordField fx:id="signupPasswordField" prefWidth="280"
-                               promptText="Create a password (min 6 chars)"
-                               style="-fx-padding: 8; -fx-font-size: 13px;"/>
+                <Label style="-fx-font-weight: bold;" text="Password:" />
+                <PasswordField fx:id="signupPasswordField" prefWidth="280" promptText="Create a password (min 6 chars)" style="-fx-padding: 8; -fx-font-size: 13px;" />
             </VBox>
 
-            <Button fx:id="registerButton" text="Sign Up" onAction="#handleRegister"
-                    prefWidth="280" prefHeight="35"
-                    style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold; -fx-background-radius: 5;"/>
+            <Button fx:id="registerButton" onAction="#handleRegister" prefHeight="35" prefWidth="280" style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold; -fx-background-radius: 5;" text="Sign Up" />
 
-            <Label fx:id="registerStatusLabel" textFill="gray" wrapText="true" prefWidth="280"
-                   style="-fx-font-size: 12px;"/>
+            <Label fx:id="registerStatusLabel" prefWidth="280" style="-fx-font-size: 12px;" textFill="gray" wrapText="true" />
 
-            <Hyperlink text="Already have an account? Login" onAction="#switchToLogin"
-                       style="-fx-font-size: 12px;"/>
+            <Hyperlink onAction="#switchToLogin" style="-fx-font-size: 12px;" text="Already have an account? Login" />
         </VBox>
+        <PerspectiveCamera layoutX="105.0" layoutY="33.0" />
 
     </children>
 </AnchorPane>

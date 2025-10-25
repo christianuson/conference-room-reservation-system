@@ -9,7 +9,7 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        System.out.println("=== Room Reservation Application ===");
+        System.out.println("=== Conference Room Reservation Application ===");
 
         // Load FXML and controller
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/login.fxml"));
@@ -17,8 +17,8 @@ public class Main extends Application {
         LoginController login = loader.getController();
 
         // Show UI
-        primaryStage.setTitle("Room Reservation Login");
-        primaryStage.setScene(new Scene(root, 400, 350));
+        primaryStage.setTitle("Conference Room Reservation Login");
+        primaryStage.setScene(new Scene(root, 540, 570));
         primaryStage.show();
 
         System.out.println("Login screen loaded...");
