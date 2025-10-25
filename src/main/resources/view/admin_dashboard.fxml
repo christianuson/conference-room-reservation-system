@@ -41,7 +41,7 @@
             <Tab text="Rooms">
                 <VBox spacing="10" style="-fx-padding: 15;">
                     <HBox spacing="10" alignment="CENTER_LEFT">
-                        <Label text="Room Management"
+                        <Label text="Conference Room Management"
                                style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
                         <Region HBox.hgrow="ALWAYS"/>
                         <Button text="Add Room" onAction="#addRoom"
