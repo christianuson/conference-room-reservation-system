@@ -179,6 +179,11 @@
                                     <javafx.scene.control.cell.PropertyValueFactory property="date" />
                                 </cellValueFactory>
                             </TableColumn>
+                            <TableColumn fx:id="resStatusColumn" text="Status" prefWidth="160">
+                                <cellValueFactory>
+                                    <javafx.scene.control.cell.PropertyValueFactory property="status" />
+                                </cellValueFactory>
+                            </TableColumn>
                         </columns>
                         <placeholder>
                             <Label text="No reservations found."

@@ -31,6 +31,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 public class AdminController {
+
     @FXML private TableView<Room> roomTable;
     @FXML private TableColumn<Room, String> roomNameColumn;
     @FXML private TableColumn<Room, String> roomStatusColumn;
@@ -44,6 +45,7 @@ public class AdminController {
     @FXML private TableColumn<Reservation, String> resUsernameColumn;
     @FXML private TableColumn<Reservation, String> resRoomColumn;
     @FXML private TableColumn<Reservation, String> resDateColumn;
+    @FXML private TableColumn<Reservation, String> resStatusColumn;
 
     @FXML private Label statusLabel;
     @FXML private TextField roomNameField;
@@ -131,19 +133,47 @@ public class AdminController {
     }
 
     private void setupReservationTable() {
-        resUsernameColumn = new TableColumn<>("Username");
+        if (resUsernameColumn == null) {
+            resUsernameColumn = new TableColumn<>("Username");
+        }
         resUsernameColumn.setCellValueFactory(new PropertyValueFactory<>("username"));
 
-        resRoomColumn = new TableColumn<>("Room");
+        if (resRoomColumn == null) {
+            resRoomColumn = new TableColumn<>("Room");
+        }
         resRoomColumn.setCellValueFactory(new PropertyValueFactory<>("roomName"));
 
-        resDateColumn = new TableColumn<>("Date");
-        resDateColumn.setCellValueFactory(new PropertyValueFactory<>("date"));
+        if (resDateColumn == null) {
+            resDateColumn = new TableColumn<>("Date & Time");
+        }
+        // Show "YYYY-MM-DD HH:mm - HH:mm"
+        resDateColumn.setCellValueFactory(cd -> {
+            Reservation r = cd.getValue();
+            String d  = r.getDate() == null ? "" : r.getDate();
+            String st = r.getStartTime() == null ? "" : r.getStartTime();
+            String en = r.getEndTime()   == null ? "" : r.getEndTime();
+            String combined = d;
+            if (!st.isEmpty() && !en.isEmpty()) combined += " " + st + " - " + en;
+            return new javafx.beans.property.SimpleStringProperty(combined.trim());
+        });
+
+        if (resStatusColumn == null) {
+            resStatusColumn = new TableColumn<>("Status");
+        }
+        resStatusColumn.setCellValueFactory(cd -> {
+            String raw = cd.getValue().getStatus();
+            String nice = (raw == null || raw.isBlank()) ? "Pending"
+                    : raw.substring(0,1).toUpperCase() + raw.substring(1).toLowerCase();
+            return new javafx.beans.property.SimpleStringProperty(nice);
+        });
 
         if (reservationTable.getColumns().isEmpty()) {
-            reservationTable.getColumns().addAll(resUsernameColumn, resRoomColumn, resDateColumn);
+            reservationTable.getColumns().addAll(
+                    resUsernameColumn, resRoomColumn, resDateColumn, resStatusColumn
+            );
         }
     }
+
 
     // -------------------- ACTION EVENT: ROOM MANAGEMENT --------------------
 
@@ -155,25 +185,17 @@ public class AdminController {
             Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
             if (sel == null) return;
 
-            Room r = DataStore.getRoomByName(sel.getRoomName());
-            if (r == null) {
-                statusLabel.setTextFill(Color.RED);
-                statusLabel.setText("Room not found for this reservation.");
-                return;
-            }
-            // Only approve if currently Pending
-            if (!"Pending".equalsIgnoreCase(r.getStatus())) {
+            if (!"Pending".equalsIgnoreCase(sel.getStatus())) {
                 statusLabel.setTextFill(Color.RED);
                 statusLabel.setText("Only 'Pending' reservations can be approved.");
                 return;
             }
-
-            r.setStatus("Reserved");
-            DataStore.updateRoom(r);
-            roomTable.refresh();
+            DataStore.updateReservationStatus(sel, "Reserved");
+            DataStore.reloadAll();
             reservationTable.refresh();
+            roomTable.refresh();
             statusLabel.setTextFill(Color.GREEN);
-            statusLabel.setText("Reservation approved. Room set to RESERVED.");
+            statusLabel.setText("Reservation approved.");
         });
 
         MenuItem reject = new MenuItem("Reject / Cancel Reservation");
@@ -181,20 +203,17 @@ public class AdminController {
             Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
             if (sel == null) return;
 
-            // Set room back to Available and remove reservation
-            Room r = DataStore.getRoomByName(sel.getRoomName());
-            if (r != null) {
-                r.setStatus("Available");
-                DataStore.updateRoom(r);
+            if (!"Pending".equalsIgnoreCase(sel.getStatus())) {
+                statusLabel.setTextFill(Color.RED);
+                statusLabel.setText("Only 'Pending' reservations can be rejected.");
+                return;
             }
-            DataStore.deleteReservation(sel);
-
-            roomTable.refresh();
-            reservationTable.getItems().remove(sel);
+            DataStore.updateReservationStatus(sel, "Rejected");
+            DataStore.reloadAll();
             reservationTable.refresh();
-
+            roomTable.refresh();
             statusLabel.setTextFill(Color.ORANGE);
-            statusLabel.setText("Reservation rejected/cancelled. Room set to AVAILABLE.");
+            statusLabel.setText("Reservation rejected.");
         });
 
         menu.getItems().addAll(approve, reject);
@@ -207,11 +226,11 @@ public class AdminController {
                     menu.show(row, evt.getScreenX(), evt.getScreenY());
                 }
             });
-            // Hide on left click
             row.setOnMouseClicked(evt -> menu.hide());
             return row;
         });
     }
+
 
     private ComboBox<String> buildStatusBox(String initial) {
         ComboBox<String> box = new ComboBox<>(
@@ -231,57 +250,33 @@ public class AdminController {
             statusLabel.setText("Select a reservation to approve.");
             return;
         }
-
-        Room r = DataStore.getRoomByName(sel.getRoomName());
-        if (r == null) {
-            statusLabel.setTextFill(Color.RED);
-            statusLabel.setText("Room not found for this reservation.");
-            return;
-        }
-
-        if (!"Pending".equalsIgnoreCase(r.getStatus())) {
+        // Only approve if it is currently pending
+        if (!"pending".equalsIgnoreCase(sel.getStatus())) {
             statusLabel.setTextFill(Color.RED);
             statusLabel.setText("Only 'Pending' reservations can be approved.");
             return;
         }
 
-        r.setStatus("Reserved");
-        DataStore.updateRoom(r);
-
-        // refresh views
-        roomTable.refresh();
+        DataStore.updateReservationStatus(sel, "approved");
         reservationTable.refresh();
-
         statusLabel.setTextFill(Color.GREEN);
-        statusLabel.setText("Reservation approved. Room set to RESERVED.");
+        statusLabel.setText("Reservation approved.");
     }
 
-    // Reject/Cancel: return room to Available and remove the reservation record
     @FXML
     private void rejectSelectedReservation() {
         Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
         if (sel == null) {
             statusLabel.setTextFill(Color.RED);
-            statusLabel.setText("Select a reservation to reject/cancel.");
+            statusLabel.setText("Select a reservation to reject.");
             return;
         }
-
-        Room r = DataStore.getRoomByName(sel.getRoomName());
-        if (r != null) {
-            r.setStatus("Available");
-            DataStore.updateRoom(r);
-        }
-
-        DataStore.deleteReservation(sel);
-
-        // update tables
-        reservationTable.getItems().remove(sel);
+        DataStore.updateReservationStatus(sel, "rejected");
         reservationTable.refresh();
-        roomTable.refresh();
-
         statusLabel.setTextFill(Color.ORANGE);
-        statusLabel.setText("Reservation rejected/cancelled. Room set to AVAILABLE.");
+        statusLabel.setText("Reservation rejected.");
     }
+
 
     @FXML
     private void addRoom() {

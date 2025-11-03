@@ -118,9 +118,10 @@ public class UserController {
         nameLabel.setAlignment(Pos.CENTER);
 
         // Status label with color coding
-        Label statusBadge = new Label(room.getStatus());
+        String effective = DataStore.computeRoomStatusNow(room.getName());
+        Label statusBadge = new Label(effective);
         statusBadge.setPadding(new Insets(5, 15, 5, 15));
-        statusBadge.setStyle(getStatusStyle(room.getStatus()));
+        statusBadge.setStyle(getStatusStyle(effective));
 
         // Add components to card
         card.getChildren().addAll(imageContainer, nameLabel, statusBadge);
@@ -238,15 +239,24 @@ public class UserController {
     private void setupMyReservationsTable() {
         myResRoomColumn.setCellValueFactory(cd ->
                 new javafx.beans.property.SimpleStringProperty(cd.getValue().getRoomName()));
-        myResDateColumn.setCellValueFactory(cd ->
-                new javafx.beans.property.SimpleStringProperty(cd.getValue().getDate()));
+
+        // Show "YYYY-MM-DD HH:mm - HH:mm"
+        myResDateColumn.setCellValueFactory(cd -> {
+            Reservation r = cd.getValue();
+            String date = r.getDate() == null ? "" : r.getDate();
+            String st   = r.getStartTime() == null ? "" : r.getStartTime();
+            String en   = r.getEndTime()   == null ? "" : r.getEndTime();
+            String combined = date;
+            if (!st.isEmpty() && !en.isEmpty()) combined += " " + st + " - " + en;
+            return new javafx.beans.property.SimpleStringProperty(combined.trim());
+        });
 
         // Show the *room's* current status: Available / Pending / Reserved
         myResStatusColumn.setCellValueFactory(cd -> {
-            Reservation r = cd.getValue();
-            Room room = DataStore.getRoomByName(r.getRoomName());
-            String status = (room != null && room.getStatus() != null) ? room.getStatus() : "Unknown";
-            return new javafx.beans.property.SimpleStringProperty(status);
+            String raw = cd.getValue().getStatus();
+            String nice = (raw == null || raw.isBlank()) ? "Pending"
+                    : raw.substring(0,1).toUpperCase() + raw.substring(1).toLowerCase();
+            return new javafx.beans.property.SimpleStringProperty(nice);
         });
     }
 
