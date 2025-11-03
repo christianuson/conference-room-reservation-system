@@ -2,19 +2,25 @@ package controller;
 
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.input.MouseButton;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.scene.layout.BorderPane;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 import model.Reservation;
 import model.Room;
 import model.User;
 import util.DataStore;
 
-import java.time.LocalDate;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
@@ -24,27 +30,16 @@ import java.util.TimerTask;
 public class UserController {
 
     @FXML private BorderPane mainPane;
-    @FXML private TableView<Room> roomTable;
-    @FXML private TableColumn<Room, String> roomNameColumn;
-    @FXML private TableColumn<Room, String> roomStatusColumn;
-
+    @FXML private FlowPane roomCardsContainer;
+    @FXML private TextField searchField;
     @FXML private TableView<Reservation> myReservationsTable;
     @FXML private TableColumn<Reservation, String> myResRoomColumn;
     @FXML private TableColumn<Reservation, String> myResDateColumn;
     @FXML private TableColumn<Reservation, String> myResStatusColumn;
-
-    @FXML private TextField bookingRoomField;
-    @FXML private DatePicker bookingDatePicker;
-    @FXML private TextField bookingTimeField;
-    @FXML private TextField customerNameField;
-    @FXML private TextArea notesField;
-
-    @FXML private Button reserveButton;
     @FXML private Button cancelButton;
     @FXML private Label statusLabel;
     @FXML private Label welcomeLabel;
-    @FXML private Label bookingPreviewLabel;
-    @FXML private javafx.scene.layout.VBox myReservationsSection;
+    @FXML private VBox myReservationsSection;
 
     private Timer refreshTimer = new Timer(true);
     private TimerTask refreshTask;
@@ -53,50 +48,208 @@ public class UserController {
 
     @FXML
     public void initialize() {
-        // Window Event: Load persisted data on open
-        DataStore.loadUsers("src/main/resources/data/users.json");
-        DataStore.loadRooms();
-        DataStore.loadReservations();
+        // Initialize database
+        DataStore.initialize();
 
-        // Setup tables
-        setupRoomTable();
+        // Setup my reservations table
         setupMyReservationsTable();
 
-        // Bind rooms to TableView
-        roomTable.setItems(DataStore.getRooms());
+        // Load and display room cards
+        loadRoomCards();
 
         // Timer Event: Auto-refresh availability every 30 seconds
         startAutoRefresh();
 
-        // Mouse Event: Hover over room to show availability
-        setupRoomHoverEffect();
-
-        // Mouse Event: Click on room to select for booking
-        setupRoomSelection();
-
-        // Key Event: Press Enter to confirm booking
-        setupKeyEventHandlers();
-
-        // Text Event: Live preview of booking details
-        setupBookingPreview();
-
-        // Color Event: Highlight rooms by status
-        highlightRoomsByStatus();
+        // Text Event: Search functionality
+        setupSearchField();
 
         statusLabel.setText("Ready to make a reservation");
     }
 
-    // -------------------- TABLE SETUP --------------------
-    private void setupRoomTable() {
-        roomNameColumn.setCellValueFactory(new PropertyValueFactory<>("name"));
-        roomStatusColumn.setCellValueFactory(new PropertyValueFactory<>("status"));
+    // -------------------- ROOM CARDS SETUP --------------------
+    private void loadRoomCards() {
+        roomCardsContainer.getChildren().clear();
+        javafx.collections.ObservableList<Room> rooms = DataStore.getRooms();
+
+        for (Room room : rooms) {
+            VBox card = createRoomCard(room);
+            roomCardsContainer.getChildren().add(card);
+        }
     }
 
-    private void setupMyReservationsTable() {
-        myResRoomColumn.setCellValueFactory(new PropertyValueFactory<>("roomName"));
-        myResDateColumn.setCellValueFactory(new PropertyValueFactory<>("date"));
-        myResStatusColumn.setCellValueFactory(new PropertyValueFactory<>("date")); // Can be customized
+    private VBox createRoomCard(Room room) {
+        VBox card = new VBox(10);
+        card.setPrefSize(200, 250);
+        card.setAlignment(Pos.TOP_CENTER);
+        card.setPadding(new Insets(15));
+        card.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-border-color: #ddd; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 10; " +
+                        "-fx-background-radius: 10; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);"
+        );
+
+        // Placeholder image container
+        VBox imageContainer = new VBox();
+        imageContainer.setPrefSize(170, 120);
+        imageContainer.setAlignment(Pos.CENTER);
+        imageContainer.setStyle(
+                "-fx-background-color: #e0e0e0; " +
+                        "-fx-border-color: #999; " +
+                        "-fx-border-width: 1; " +
+                        "-fx-border-radius: 5; " +
+                        "-fx-background-radius: 5;"
+        );
+
+        Label imagePlaceholder = new Label("📷");
+        imagePlaceholder.setStyle("-fx-font-size: 40px; -fx-text-fill: #666;");
+        imageContainer.getChildren().add(imagePlaceholder);
+
+        // Room name
+        Label nameLabel = new Label(room.getName());
+        nameLabel.setStyle(
+                "-fx-font-size: 16px; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-text-fill: #333;"
+        );
+        nameLabel.setWrapText(true);
+        nameLabel.setAlignment(Pos.CENTER);
+
+        // Status label with color coding
+        Label statusBadge = new Label(room.getStatus());
+        statusBadge.setPadding(new Insets(5, 15, 5, 15));
+        statusBadge.setStyle(getStatusStyle(room.getStatus()));
+
+        // Add components to card
+        card.getChildren().addAll(imageContainer, nameLabel, statusBadge);
+
+        // Mouse Events: Hover effect
+        card.setOnMouseEntered(e -> {
+            card.setStyle(
+                    "-fx-background-color: #f5f5f5; " +
+                            "-fx-border-color: #2196F3; " +
+                            "-fx-border-width: 2; " +
+                            "-fx-border-radius: 10; " +
+                            "-fx-background-radius: 10; " +
+                            "-fx-effect: dropshadow(gaussian, rgba(33,150,243,0.3), 10, 0, 0, 3); " +
+                            "-fx-cursor: hand;"
+            );
+            statusLabel.setTextFill(Color.BLUE);
+            statusLabel.setText("Room: " + room.getName() + " - Status: " + room.getStatus());
+        });
+
+        card.setOnMouseExited(e -> {
+            card.setStyle(
+                    "-fx-background-color: white; " +
+                            "-fx-border-color: #ddd; " +
+                            "-fx-border-width: 2; " +
+                            "-fx-border-radius: 10; " +
+                            "-fx-background-radius: 10; " +
+                            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);"
+            );
+            if (selectedRoom == null) {
+                statusLabel.setTextFill(Color.BLACK);
+                statusLabel.setText("Ready to make a reservation");
+            }
+        });
+
+        // Mouse Event: Double-click to open reservation form
+        card.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.PRIMARY && e.getClickCount() == 2) {
+                openReservationForm(room);
+            } else if (e.getClickCount() == 1) {
+                selectedRoom = room;
+                statusLabel.setTextFill(Color.GREEN);
+                statusLabel.setText("Selected: " + room.getName() + " (" + room.getStatus() + ")");
+            }
+        });
+
+        return card;
     }
+
+    private String getStatusStyle(String status) {
+        String baseStyle = "-fx-font-size: 12px; -fx-font-weight: bold; -fx-border-radius: 15; -fx-background-radius: 15;";
+
+        if ("Available".equalsIgnoreCase(status)) {
+            return baseStyle + "-fx-background-color: #4CAF50; -fx-text-fill: white;";
+        } else if ("Reserved".equalsIgnoreCase(status)) {
+            return baseStyle + "-fx-background-color: #f44336; -fx-text-fill: white;";
+        } else if ("Pending".equalsIgnoreCase(status)) {
+            return baseStyle + "-fx-background-color: #FFC107; -fx-text-fill: white;";
+        }
+        return baseStyle + "-fx-background-color: #999; -fx-text-fill: white;";
+    }
+
+    // -------------------- SEARCH FUNCTIONALITY --------------------
+    private void setupSearchField() {
+        searchField.textProperty().addListener((obs, oldV, newV) -> {
+            filterRoomCards(newV.toLowerCase());
+        });
+    }
+
+    private void filterRoomCards(String searchTerm) {
+        roomCardsContainer.getChildren().clear();
+        javafx.collections.ObservableList<Room> rooms = DataStore.getRooms();
+
+        for (Room room : rooms) {
+            if (searchTerm.isEmpty() ||
+                    room.getName().toLowerCase().contains(searchTerm) ||
+                    room.getStatus().toLowerCase().contains(searchTerm)) {
+                VBox card = createRoomCard(room);
+                roomCardsContainer.getChildren().add(card);
+            }
+        }
+
+        if (roomCardsContainer.getChildren().isEmpty()) {
+            Label noResults = new Label("No rooms found matching '" + searchTerm + "'");
+            noResults.setStyle("-fx-font-size: 14px; -fx-text-fill: #999; -fx-padding: 20;");
+            roomCardsContainer.getChildren().add(noResults);
+        }
+    }
+
+    // -------------------- RESERVATION FORM --------------------
+    private void openReservationForm(Room room) {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/reservation_form.fxml"));
+            Parent root = loader.load();
+
+            ReservationFormController controller = loader.getController();
+            controller.setRoom(room);
+            controller.setCurrentUser(currentUser);
+            controller.setParentController(this);
+
+            Stage stage = new Stage();
+            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.setTitle("Reserve Room: " + room.getName());
+            stage.setScene(new Scene(root, 500, 800));
+            stage.showAndWait();
+
+            // Refresh cards after reservation
+            loadRoomCards();
+        } catch (IOException e) {
+            e.printStackTrace();
+            showStatus("Error opening reservation form: " + e.getMessage(), Color.RED);
+        }
+    }
+
+    // -------------------- TABLE SETUP --------------------
+    private void setupMyReservationsTable() {
+        myResRoomColumn.setCellValueFactory(cd ->
+                new javafx.beans.property.SimpleStringProperty(cd.getValue().getRoomName()));
+        myResDateColumn.setCellValueFactory(cd ->
+                new javafx.beans.property.SimpleStringProperty(cd.getValue().getDate()));
+
+        // Show the *room's* current status: Available / Pending / Reserved
+        myResStatusColumn.setCellValueFactory(cd -> {
+            Reservation r = cd.getValue();
+            Room room = DataStore.getRoomByName(r.getRoomName());
+            String status = (room != null && room.getStatus() != null) ? room.getStatus() : "Unknown";
+            return new javafx.beans.property.SimpleStringProperty(status);
+        });
+    }
+
 
     // -------------------- USER SETTER --------------------
     public void setCurrentUser(User user) {
@@ -104,216 +257,37 @@ public class UserController {
         if (welcomeLabel != null) {
             welcomeLabel.setText("Welcome, " + user.getUsername() + "!");
         }
-        if (customerNameField != null) {
-            customerNameField.setText(user.getUsername());
-        }
-        statusLabel.setText("Hello " + user.getUsername() + ", select a room to get started!");
-    }
-
-    // -------------------- MOUSE EVENT: HOVER EFFECT --------------------
-    private void setupRoomHoverEffect() {
-        roomTable.setRowFactory(tv -> {
-            TableRow<Room> row = new TableRow<>();
-
-            row.setOnMouseEntered(e -> {
-                if (!row.isEmpty()) {
-                    Room room = row.getItem();
-                    statusLabel.setTextFill(Color.BLUE);
-                    statusLabel.setText("Room: " + room.getName() + " - Status: " + room.getStatus());
-                }
-            });
-
-            row.setOnMouseExited(e -> {
-                if (selectedRoom == null) {
-                    statusLabel.setTextFill(Color.BLACK);
-                    statusLabel.setText("Ready to make a reservation");
-                }
-            });
-
-            return row;
-        });
-    }
-
-    // -------------------- MOUSE EVENT: ROOM SELECTION --------------------
-    private void setupRoomSelection() {
-        roomTable.getSelectionModel().selectedItemProperty().addListener((obs, oldSelection, newSelection) -> {
-            if (newSelection != null) {
-                selectedRoom = newSelection;
-                bookingRoomField.setText(newSelection.getName());
-
-                statusLabel.setTextFill(Color.GREEN);
-                statusLabel.setText("Selected: " + newSelection.getName() + " (" + newSelection.getStatus() + ")");
-
-                updateBookingPreview();
-            }
-        });
-    }
-
-    // -------------------- KEY EVENT: ENTER TO CONFIRM --------------------
-    private void setupKeyEventHandlers() {
-        // Press Enter in any field to confirm booking
-        if (bookingDatePicker != null) {
-            bookingDatePicker.setOnKeyPressed(this::handleEnterKey);
-        }
-        if (bookingTimeField != null) {
-            bookingTimeField.setOnKeyPressed(this::handleEnterKey);
-        }
-        if (customerNameField != null) {
-            customerNameField.setOnKeyPressed(this::handleEnterKey);
-        }
-        if (notesField != null) {
-            notesField.setOnKeyPressed(this::handleEnterKey);
-        }
-    }
-
-    private void handleEnterKey(KeyEvent event) {
-        if (event.getCode() == KeyCode.ENTER) {
-            reserveRoom();
-        }
-    }
-
-    // -------------------- TEXT EVENT: LIVE BOOKING PREVIEW --------------------
-    private void setupBookingPreview() {
-        if (bookingDatePicker != null) {
-            bookingDatePicker.valueProperty().addListener((obs, oldV, newV) -> updateBookingPreview());
-        }
-        if (bookingTimeField != null) {
-            bookingTimeField.textProperty().addListener((obs, oldV, newV) -> updateBookingPreview());
-        }
-        if (customerNameField != null) {
-            customerNameField.textProperty().addListener((obs, oldV, newV) -> updateBookingPreview());
-        }
-    }
-
-    private void updateBookingPreview() {
-        if (bookingPreviewLabel != null) {
-            String room = bookingRoomField.getText();
-            String date = bookingDatePicker.getValue() != null ?
-                    bookingDatePicker.getValue().format(DateTimeFormatter.ofPattern("MMM dd, yyyy")) : "Not selected";
-            String time = bookingTimeField.getText().isEmpty() ? "Not specified" : bookingTimeField.getText();
-            String customer = customerNameField.getText().isEmpty() ? "Not specified" : customerNameField.getText();
-
-            if (room.isEmpty() || room.equals("Select a room from the table")) {
-                bookingPreviewLabel.setText("Select a room to start booking");
-            } else {
-                bookingPreviewLabel.setText(
-                        String.format("Booking: %s | Date: %s | Time: %s | Customer: %s",
-                                room, date, time, customer)
-                );
-            }
-        }
-    }
-
-    // -------------------- COLOR EVENT: HIGHLIGHT ROOMS BY STATUS --------------------
-    private void highlightRoomsByStatus() {
-        roomTable.setRowFactory(tv -> new TableRow<Room>() {
-            @Override
-            protected void updateItem(Room room, boolean empty) {
-                super.updateItem(room, empty);
-
-                if (room == null || empty) {
-                    setStyle("");
-                } else {
-                    // Color Event: Available = Green, Reserved = Red, Pending = Yellow
-                    if ("Available".equalsIgnoreCase(room.getStatus())) {
-                        setStyle("-fx-background-color: #e8f5e9;"); // Light green
-                    } else if ("Reserved".equalsIgnoreCase(room.getStatus())) {
-                        setStyle("-fx-background-color: #ffebee;"); // Light red
-                    } else if ("Pending".equalsIgnoreCase(room.getStatus())) {
-                        setStyle("-fx-background-color: #fff9c4;"); // Light yellow
-                    } else {
-                        setStyle("");
-                    }
-                }
-            }
-        });
-    }
-
-    // -------------------- ACTION EVENT: RESERVE ROOM --------------------
-    @FXML
-    private void reserveRoom() {
-        // Validation
-        if (selectedRoom == null) {
-            showStatus("Please select a room from the table!", Color.RED);
-            return;
-        }
-
-        if (!selectedRoom.getStatus().equalsIgnoreCase("Available")) {
-            showStatus("Reservation Denied! Room is not available.", Color.RED);
-            showAlert(Alert.AlertType.ERROR, "Reservation Denied",
-                    "The selected room '" + selectedRoom.getName() + "' is not available.");
-            return;
-        }
-
-        if (bookingDatePicker.getValue() == null) {
-            showStatus("Please select a date!", Color.RED);
-            return;
-        }
-
-        if (bookingTimeField.getText().isEmpty()) {
-            showStatus("Please enter a time!", Color.RED);
-            return;
-        }
-
-        if (customerNameField.getText().isEmpty()) {
-            showStatus("Please enter customer name!", Color.RED);
-            return;
-        }
-
-        // Create reservation
-        String username = currentUser != null ? currentUser.getUsername() : customerNameField.getText();
-        String roomName = selectedRoom.getName();
-        String dateTime = bookingDatePicker.getValue().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) +
-                " " + bookingTimeField.getText();
-
-        // Update room status
-        selectedRoom.setStatus("Reserved");
-
-        // Save reservation
-        DataStore.addReservation(username, roomName, dateTime);
-        DataStore.saveRooms();
-        DataStore.saveReservations();
-
-        // Show success
-        showStatus("Reservation Successful!", Color.GREEN);
-        showAlert(Alert.AlertType.INFORMATION, "Success",
-                "Room '" + roomName + "' has been reserved for " + dateTime);
-
-        // Network Event: Simulate confirmation email
-        simulateConfirmationEmail(username, roomName, dateTime);
-
-        // Clear form
-        clearBookingForm();
-        roomTable.refresh();
+        statusLabel.setText("Hello " + user.getUsername() + ", double-click a room card to reserve!");
     }
 
     // -------------------- ACTION EVENT: CANCEL RESERVATION --------------------
     @FXML
     private void cancelReservation() {
-        if (selectedRoom == null) {
-            showStatus("Please select a room to cancel reservation!", Color.RED);
-            return;
-        }
-
-        if (selectedRoom.getStatus().equalsIgnoreCase("Available")) {
-            showStatus("No reservation to cancel.", Color.RED);
+        Reservation selected = myReservationsTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showStatus("Please select a reservation to cancel!", Color.RED);
             return;
         }
 
         Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
         confirmAlert.setTitle("Cancel Reservation");
-        confirmAlert.setHeaderText("Cancel reservation for: " + selectedRoom.getName());
+        confirmAlert.setHeaderText("Cancel reservation for: " + selected.getRoomName());
         confirmAlert.setContentText("Are you sure you want to cancel this reservation?");
 
         Optional<ButtonType> result = confirmAlert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
-            selectedRoom.setStatus("Available");
-            DataStore.saveRooms();
-            DataStore.saveReservations();
+            DataStore.deleteReservation(selected);
+
+            // Update room status to Available
+            Room room = DataStore.getRoomByName(selected.getRoomName());
+            if (room != null) {
+                room.setStatus("Available");
+                DataStore.updateRoom(room);
+            }
 
             showStatus("Reservation Cancelled!", Color.ORANGE);
-            roomTable.refresh();
-            clearBookingForm();
+            loadRoomCards();
+            showReservations();
         }
     }
 
@@ -321,16 +295,9 @@ public class UserController {
     @FXML
     private void showHome() {
         statusLabel.setText("Home - View all available rooms");
-        roomTable.setItems(DataStore.getRooms());
+        loadRoomCards();
         hideMyReservations();
-        clearBookingForm();
-    }
-
-    @FXML
-    private void openReservationForm() {
-        statusLabel.setText("Select a room to reserve from the table below");
-        roomTable.requestFocus();
-        hideMyReservations();
+        searchField.clear();
     }
 
     @FXML
@@ -344,8 +311,8 @@ public class UserController {
 
         // Filter reservations for current user
         javafx.collections.ObservableList<Reservation> userReservations =
-                DataStore.getReservations().filtered(
-                        res -> res.getUsername().equals(currentUser.getUsername())
+                javafx.collections.FXCollections.observableArrayList(
+                        DataStore.getReservationsByUser(currentUser.getUsername())
                 );
 
         myReservationsTable.setItems(userReservations);
@@ -355,12 +322,6 @@ public class UserController {
             myReservationsSection.setVisible(true);
             myReservationsSection.setManaged(true);
         }
-
-        // Filter room table to show only user's reserved rooms
-        roomTable.setItems(DataStore.getRooms().filtered(
-                room -> userReservations.stream()
-                        .anyMatch(res -> res.getRoomName().equals(room.getName()))
-        ));
     }
 
     @FXML
@@ -378,8 +339,7 @@ public class UserController {
 
     @FXML
     private void refreshRooms() {
-        DataStore.loadRooms();
-        roomTable.refresh();
+        loadRoomCards();
         showStatus("Rooms refreshed!", Color.BLUE);
     }
 
@@ -392,8 +352,8 @@ public class UserController {
 
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
-            DataStore.saveAll();
             stopAutoRefresh();
+            DataStore.closeConnection();
             Stage stage = (Stage) mainPane.getScene().getWindow();
             stage.close();
         }
@@ -404,8 +364,7 @@ public class UserController {
         refreshTask = new TimerTask() {
             public void run() {
                 Platform.runLater(() -> {
-                    DataStore.loadRooms();
-                    roomTable.refresh();
+                    loadRoomCards();
                     System.out.println("[AUTO-REFRESH] Room availability updated at " +
                             LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
                 });
@@ -421,47 +380,13 @@ public class UserController {
         refreshTimer.cancel();
     }
 
-    // -------------------- NETWORK EVENT: CONFIRMATION EMAIL --------------------
-    private void simulateConfirmationEmail(String username, String roomName, String dateTime) {
-        new Thread(() -> {
-            try {
-                Thread.sleep(1000); // Simulate network delay
-                Platform.runLater(() -> {
-                    System.out.println("[EMAIL API] Sending confirmation email...");
-                    System.out.println("[EMAIL API] To: " + username + "@example.com");
-                    System.out.println("[EMAIL API] Subject: Room Reservation Confirmation");
-                    System.out.println("[EMAIL API] Body: Your reservation for '" + roomName +
-                            "' on " + dateTime + " has been confirmed.");
-                    System.out.println("[EMAIL API] Status: Sent successfully (200 OK)");
-                    System.out.println("[EMAIL API] Timestamp: " +
-                            LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-                });
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
-    }
-
     // -------------------- UTILITY METHODS --------------------
-    private void clearBookingForm() {
-        selectedRoom = null;
-        bookingRoomField.clear();
-        bookingDatePicker.setValue(null);
-        bookingTimeField.clear();
-        notesField.clear();
-        bookingPreviewLabel.setText("No booking details yet");
-    }
-
     private void showStatus(String message, Color color) {
         statusLabel.setText(message);
         statusLabel.setTextFill(color);
     }
 
-    private void showAlert(Alert.AlertType type, String title, String message) {
-        Alert alert = new Alert(type);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+    public void refreshCards() {
+        loadRoomCards();
     }
 }
