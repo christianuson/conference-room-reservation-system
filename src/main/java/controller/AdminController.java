@@ -47,7 +47,7 @@ public class AdminController {
 
     @FXML private Label statusLabel;
     @FXML private TextField roomNameField;
-    @FXML private TextField roomStatusField;
+    @FXML private ComboBox<String> roomStatusField;
     @FXML private Label roomPreviewLabel;
 
     private final Timer backupTimer = new Timer(true);
@@ -64,6 +64,9 @@ public class AdminController {
         setupRoomTable();
         setupUserTable();
         setupReservationTable();
+
+        // attach right-click Approve/Reject on reservations
+        attachReservationContextMenu();
 
         // Set observable data for tables
         roomTable.setItems(DataStore.getRooms());
@@ -143,6 +146,143 @@ public class AdminController {
     }
 
     // -------------------- ACTION EVENT: ROOM MANAGEMENT --------------------
+
+    private void attachReservationContextMenu() {
+        ContextMenu menu = new ContextMenu();
+
+        MenuItem approve = new MenuItem("Approve Reservation");
+        approve.setOnAction(e -> {
+            Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
+            if (sel == null) return;
+
+            Room r = DataStore.getRoomByName(sel.getRoomName());
+            if (r == null) {
+                statusLabel.setTextFill(Color.RED);
+                statusLabel.setText("Room not found for this reservation.");
+                return;
+            }
+            // Only approve if currently Pending
+            if (!"Pending".equalsIgnoreCase(r.getStatus())) {
+                statusLabel.setTextFill(Color.RED);
+                statusLabel.setText("Only 'Pending' reservations can be approved.");
+                return;
+            }
+
+            r.setStatus("Reserved");
+            DataStore.updateRoom(r);
+            roomTable.refresh();
+            reservationTable.refresh();
+            statusLabel.setTextFill(Color.GREEN);
+            statusLabel.setText("Reservation approved. Room set to RESERVED.");
+        });
+
+        MenuItem reject = new MenuItem("Reject / Cancel Reservation");
+        reject.setOnAction(e -> {
+            Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
+            if (sel == null) return;
+
+            // Set room back to Available and remove reservation
+            Room r = DataStore.getRoomByName(sel.getRoomName());
+            if (r != null) {
+                r.setStatus("Available");
+                DataStore.updateRoom(r);
+            }
+            DataStore.deleteReservation(sel);
+
+            roomTable.refresh();
+            reservationTable.getItems().remove(sel);
+            reservationTable.refresh();
+
+            statusLabel.setTextFill(Color.ORANGE);
+            statusLabel.setText("Reservation rejected/cancelled. Room set to AVAILABLE.");
+        });
+
+        menu.getItems().addAll(approve, reject);
+
+        reservationTable.setRowFactory(tv -> {
+            TableRow<Reservation> row = new TableRow<>();
+            row.setOnContextMenuRequested(evt -> {
+                if (!row.isEmpty()) {
+                    reservationTable.getSelectionModel().select(row.getItem());
+                    menu.show(row, evt.getScreenX(), evt.getScreenY());
+                }
+            });
+            // Hide on left click
+            row.setOnMouseClicked(evt -> menu.hide());
+            return row;
+        });
+    }
+
+    private ComboBox<String> buildStatusBox(String initial) {
+        ComboBox<String> box = new ComboBox<>(
+                FXCollections.observableArrayList("Available", "Reserved", "Pending")
+        );
+        box.setEditable(false);
+        box.setValue(initial != null ? initial : "Available");
+        return box;
+    }
+
+    // Approve: only if the room tied to the selected reservation is currently Pending
+    @FXML
+    private void approveSelectedReservation() {
+        Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
+        if (sel == null) {
+            statusLabel.setTextFill(Color.RED);
+            statusLabel.setText("Select a reservation to approve.");
+            return;
+        }
+
+        Room r = DataStore.getRoomByName(sel.getRoomName());
+        if (r == null) {
+            statusLabel.setTextFill(Color.RED);
+            statusLabel.setText("Room not found for this reservation.");
+            return;
+        }
+
+        if (!"Pending".equalsIgnoreCase(r.getStatus())) {
+            statusLabel.setTextFill(Color.RED);
+            statusLabel.setText("Only 'Pending' reservations can be approved.");
+            return;
+        }
+
+        r.setStatus("Reserved");
+        DataStore.updateRoom(r);
+
+        // refresh views
+        roomTable.refresh();
+        reservationTable.refresh();
+
+        statusLabel.setTextFill(Color.GREEN);
+        statusLabel.setText("Reservation approved. Room set to RESERVED.");
+    }
+
+    // Reject/Cancel: return room to Available and remove the reservation record
+    @FXML
+    private void rejectSelectedReservation() {
+        Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
+        if (sel == null) {
+            statusLabel.setTextFill(Color.RED);
+            statusLabel.setText("Select a reservation to reject/cancel.");
+            return;
+        }
+
+        Room r = DataStore.getRoomByName(sel.getRoomName());
+        if (r != null) {
+            r.setStatus("Available");
+            DataStore.updateRoom(r);
+        }
+
+        DataStore.deleteReservation(sel);
+
+        // update tables
+        reservationTable.getItems().remove(sel);
+        reservationTable.refresh();
+        roomTable.refresh();
+
+        statusLabel.setTextFill(Color.ORANGE);
+        statusLabel.setText("Reservation rejected/cancelled. Room set to AVAILABLE.");
+    }
+
     @FXML
     private void addRoom() {
         Dialog<Room> dialog = new Dialog<>();
@@ -159,6 +299,7 @@ public class AdminController {
 
         TextField nameField = new TextField();
         nameField.setPromptText("Room Name");
+        ComboBox<String> statusBox = buildStatusBox("Available");
         TextField statusField = new TextField("Available");
         statusField.setPromptText("Status");
 
@@ -172,14 +313,14 @@ public class AdminController {
         grid.add(new Label("Room Name:"), 0, 0);
         grid.add(nameField, 1, 0);
         grid.add(new Label("Status:"), 0, 1);
-        grid.add(statusField, 1, 1);
+        grid.add(statusBox, 1, 1);
 
         dialog.getDialogPane().setContent(grid);
         Platform.runLater(nameField::requestFocus);
 
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == addButtonType) {
-                return new Room(nameField.getText(), statusField.getText());
+                return new Room(nameField.getText(), statusBox.getValue());  // << use box value
             }
             return null;
         });
@@ -217,16 +358,16 @@ public class AdminController {
         grid.setPadding(new Insets(20, 150, 10, 10));
 
         TextField nameField = new TextField(selected.getName());
-        TextField statusField = new TextField(selected.getStatus());
+        ComboBox<String> statusBox = buildStatusBox(selected.getStatus());
 
         // Key Event: Press Enter to confirm edits
         nameField.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ENTER) {
-                statusField.requestFocus();
+                nameField.requestFocus();
             }
         });
 
-        statusField.setOnKeyPressed(e -> {
+        nameField.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ENTER) {
                 ((Button) dialog.getDialogPane().lookupButton(saveButtonType)).fire();
             }
@@ -235,14 +376,14 @@ public class AdminController {
         grid.add(new Label("Room Name:"), 0, 0);
         grid.add(nameField, 1, 0);
         grid.add(new Label("Status:"), 0, 1);
-        grid.add(statusField, 1, 1);
+        grid.add(statusBox, 1, 1);
 
         dialog.getDialogPane().setContent(grid);
 
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == saveButtonType) {
                 selected.setName(nameField.getText());
-                selected.setStatus(statusField.getText());
+                selected.setStatus(statusBox.getValue()); // << use box value
                 return selected;
             }
             return null;
@@ -387,23 +528,23 @@ public class AdminController {
     // -------------------- TEXT EVENT: LIVE ROOM PREVIEW --------------------
     private void setupLiveRoomPreview() {
         if (roomNameField != null) {
-            roomNameField.textProperty().addListener((obs, oldV, newV) -> {
-                updateRoomPreview();
-            });
+            roomNameField.textProperty().addListener((obs, o, n) -> updateRoomPreview());
         }
-
         if (roomStatusField != null) {
-            roomStatusField.textProperty().addListener((obs, oldV, newV) -> {
-                updateRoomPreview();
-            });
+            roomStatusField.valueProperty().addListener((obs, o, n) -> updateRoomPreview());
+            // ensure options exist even if not set in FXML
+            if (roomStatusField.getItems().isEmpty()) {
+                roomStatusField.setItems(FXCollections.observableArrayList("Available","Reserved","Pending"));
+            }
+            if (roomStatusField.getValue() == null) roomStatusField.setValue("Available");
         }
     }
 
     private void updateRoomPreview() {
         if (roomPreviewLabel != null) {
             String name = roomNameField != null ? roomNameField.getText() : "";
-            String status = roomStatusField != null ? roomStatusField.getText() : "";
-
+            String status = (roomStatusField != null && roomStatusField.getValue() != null)
+                    ? roomStatusField.getValue() : "";
             roomPreviewLabel.setText("Preview: " + name + " - " + status);
             roomPreviewLabel.setStyle("-fx-font-style: italic; -fx-text-fill: #666;");
         }
@@ -581,9 +722,35 @@ public class AdminController {
 
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
-            DataStore.saveAll();
-            Stage stage = (Stage) statusLabel.getScene().getWindow();
-            stage.close();
+            try {
+                // Save current data
+                DataStore.saveAll();
+
+                // Stop background timers when leaving this dashboard
+                if (backupTask != null) backupTask.cancel();
+                if (refreshTask != null) refreshTask.cancel();
+                backupTimer.cancel();
+                refreshTimer.cancel();
+
+                // Load login screen
+                javafx.fxml.FXMLLoader loader =
+                        new javafx.fxml.FXMLLoader(getClass().getResource("/view/login.fxml"));
+                javafx.scene.Parent loginRoot = loader.load();
+
+                // Reuse the same Stage (window)
+                Stage stage = (Stage) statusLabel.getScene().getWindow();
+                stage.setTitle("Login");
+                // Keep current window size; or set a fixed size if you prefer:
+                stage.setWidth(540); stage.setHeight(570);
+                stage.setScene(new javafx.scene.Scene(loginRoot));
+                stage.centerOnScreen();
+                stage.show();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                statusLabel.setTextFill(javafx.scene.paint.Color.RED);
+                statusLabel.setText("Failed to return to login: " + e.getMessage());
+            }
         }
     }
 }
