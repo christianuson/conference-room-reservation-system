@@ -7,6 +7,12 @@ import model.Room;
 import model.User;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 
 public class DataStore {
     private static final String DB_URL = "jdbc:sqlite:conference_room.db";
@@ -19,17 +25,11 @@ public class DataStore {
     // -------------------- INITIALIZATION --------------------
     public static void initialize() {
         try {
-            // Load SQLite JDBC driver
             Class.forName("org.sqlite.JDBC");
-
-            // Establish connection
             connection = DriverManager.getConnection(DB_URL);
             System.out.println("[DATABASE] Connected to SQLite database");
 
-            // Create tables if they don't exist
             createTables();
-
-            // Initialize with sample data if empty
             initializeSampleData();
         } catch (ClassNotFoundException e) {
             System.err.println("[DATABASE ERROR] SQLite JDBC driver not found!");
@@ -61,12 +61,15 @@ public class DataStore {
                 ")";
         stmt.execute(createRoomsTable);
 
-        // Create Reservations table
+        // Create Reservations table with time range and status
         String createReservationsTable = "CREATE TABLE IF NOT EXISTS reservations (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "username TEXT NOT NULL," +
                 "room_name TEXT NOT NULL," +
-                "date TEXT NOT NULL" +
+                "date TEXT NOT NULL," +
+                "startTime TEXT NOT NULL DEFAULT '00:00'," +
+                "endTime TEXT NOT NULL DEFAULT '23:59'," +
+                "status TEXT NOT NULL DEFAULT 'pending'" +
                 ")";
         stmt.execute(createReservationsTable);
 
@@ -75,19 +78,16 @@ public class DataStore {
     }
 
     private static void initializeSampleData() throws SQLException {
-        // Check if data already exists
         if (countRooms() == 0) {
-            // Add sample rooms
             addRoom(new Room("Conference Room A", "Available"));
             addRoom(new Room("Conference Room B", "Available"));
-            addRoom(new Room("Conference Room C", "Reserved"));
+            addRoom(new Room("Conference Room C", "Available"));
             addRoom(new Room("Meeting Room 1", "Available"));
-            addRoom(new Room("Meeting Room 2", "Pending"));
+            addRoom(new Room("Meeting Room 2", "Available"));
             System.out.println("[DATABASE] Sample rooms initialized");
         }
 
         if (countUsers() == 0) {
-            // Add sample users
             addUser("admin", "admin@example.com", "admin123", "admin");
             addUser("john_doe", "john@example.com", "password123", "user");
             addUser("jane_smith", "jane@example.com", "password123", "user");
@@ -113,30 +113,24 @@ public class DataStore {
         return count;
     }
 
-    // -------------------- USER METHODS --------------------
+    // -------------------- USER METHODS (unchanged) --------------------
     public static void loadUsers(String filePath) {
-        // Initialize database instead of loading from file
-        if (connection == null) {
-            initialize();
-        }
+        if (connection == null) initialize();
         syncUsersFromDB();
     }
 
     private static void syncUsersFromDB() {
         userList.clear();
         String sql = "SELECT * FROM users";
-
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
-
             while (rs.next()) {
-                User user = new User(
+                userList.add(new User(
                         rs.getString("username"),
                         rs.getString("email"),
                         rs.getString("password"),
                         rs.getString("role")
-                );
-                userList.add(user);
+                ));
             }
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to sync users: " + e.getMessage());
@@ -144,24 +138,18 @@ public class DataStore {
     }
 
     public static ObservableList<User> getUsers() {
-        if (connection == null) {
-            initialize();
-        }
+        if (connection == null) initialize();
         syncUsersFromDB();
         return userList;
     }
 
     public static boolean validateUser(String email, String password) {
-        if (connection == null) {
-            initialize();
-        }
-
+        if (connection == null) initialize();
         String sql = "SELECT * FROM users WHERE email = ? AND password = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, email);
             pstmt.setString(2, password);
-            ResultSet rs = pstmt.executeQuery();
-            return rs.next();
+            return pstmt.executeQuery().next();
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to validate user: " + e.getMessage());
             return false;
@@ -169,24 +157,18 @@ public class DataStore {
     }
 
     public static boolean userExists(String email) {
-        if (connection == null) {
-            initialize();
-        }
-
+        if (connection == null) initialize();
         String sql = "SELECT * FROM users WHERE email = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, email);
-            ResultSet rs = pstmt.executeQuery();
-            return rs.next();
+            return pstmt.executeQuery().next();
         } catch (SQLException e) {
-            System.err.println("[DATABASE ERROR] Failed to check user existence: " + e.getMessage());
             return false;
         }
     }
 
     public static void addUser(String username, String email, String password, String role) {
         if (userExists(email)) return;
-
         String sql = "INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, username);
@@ -194,17 +176,14 @@ public class DataStore {
             pstmt.setString(3, password);
             pstmt.setString(4, role);
             pstmt.executeUpdate();
-            syncUsersFromDB(); // Refresh cache
+            syncUsersFromDB();
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to add user: " + e.getMessage());
         }
     }
 
     public static boolean isAdmin(String email) {
-        if (connection == null) {
-            initialize();
-        }
-
+        if (connection == null) initialize();
         String sql = "SELECT role FROM users WHERE email = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, email);
@@ -219,10 +198,7 @@ public class DataStore {
     }
 
     public static User getUserByEmail(String email) {
-        if (connection == null) {
-            initialize();
-        }
-
+        if (connection == null) initialize();
         String sql = "SELECT * FROM users WHERE email = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, email);
@@ -242,7 +218,6 @@ public class DataStore {
     }
 
     public static void saveUsers() {
-        // No-op: Auto-saved to database in real-time
         System.out.println("[DATABASE] Users already persisted to database");
     }
 
@@ -275,27 +250,22 @@ public class DataStore {
         deleteUser(user.getEmail());
     }
 
-    // -------------------- ROOM METHODS --------------------
+    // -------------------- ROOM METHODS (unchanged) --------------------
     public static void loadRooms() {
-        if (connection == null) {
-            initialize();
-        }
+        if (connection == null) initialize();
         syncRoomsFromDB();
     }
 
     private static void syncRoomsFromDB() {
         rooms.clear();
         String sql = "SELECT * FROM rooms";
-
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
-
             while (rs.next()) {
-                Room room = new Room(
+                rooms.add(new Room(
                         rs.getString("name"),
                         rs.getString("status")
-                );
-                rooms.add(room);
+                ));
             }
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to sync rooms: " + e.getMessage());
@@ -303,11 +273,44 @@ public class DataStore {
     }
 
     public static ObservableList<Room> getRooms() {
-        if (connection == null) {
-            initialize();
-        }
+        if (connection == null) initialize();
         syncRoomsFromDB();
         return rooms;
+    }
+
+    public static String computeRoomStatusNow(String roomName) {
+        String sql = "SELECT status, date, startTime, endTime FROM reservations WHERE room_name = ?";
+        boolean hasPending = false;
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, roomName);
+            try (ResultSet rs = ps.executeQuery()) {
+                LocalDate today = LocalDate.now();
+                LocalTime now = LocalTime.now();
+                DateTimeFormatter tf = DateTimeFormatter.ofPattern("H:mm").withResolverStyle(java.time.format.ResolverStyle.LENIENT);
+
+                while (rs.next()) {
+                    String dateStr = rs.getString("date");         // yyyy-MM-dd
+                    String stStr   = rs.getString("startTime");    // HH:mm
+                    String enStr   = rs.getString("endTime");      // HH:mm
+                    String status  = rs.getString("status");       // pending / approved / rejected
+
+                    if (dateStr == null || stStr == null || enStr == null) continue;
+                    if (!today.toString().equals(dateStr)) continue;
+
+                    LocalTime st = LocalTime.parse(stStr, tf);
+                    LocalTime en = LocalTime.parse(enStr, tf);
+                    boolean overlapsNow = !now.isBefore(st) && now.isBefore(en);
+
+                    if (overlapsNow) {
+                        if ("approved".equalsIgnoreCase(status)) return "Reserved";
+                        if ("pending".equalsIgnoreCase(status)) hasPending = true;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DATABASE ERROR] computeRoomStatusNow: " + e.getMessage());
+        }
+        return hasPending ? "Pending" : "Available";
     }
 
     public static void addRoom(Room room) {
@@ -334,7 +337,6 @@ public class DataStore {
     }
 
     public static void saveRooms() {
-        // Update all rooms in database
         for (Room room : rooms) {
             String sql = "UPDATE rooms SET status = ? WHERE name = ?";
             try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
@@ -377,28 +379,26 @@ public class DataStore {
         }
     }
 
-    // -------------------- RESERVATION METHODS --------------------
+    // -------------------- RESERVATION METHODS (WITH TIME RANGE) --------------------
     public static void loadReservations() {
-        if (connection == null) {
-            initialize();
-        }
+        if (connection == null) initialize();
         syncReservationsFromDB();
     }
 
     private static void syncReservationsFromDB() {
         reservations.clear();
         String sql = "SELECT * FROM reservations";
-
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
-
             while (rs.next()) {
-                Reservation reservation = new Reservation(
+                reservations.add(new Reservation(
                         rs.getString("username"),
                         rs.getString("room_name"),
-                        rs.getString("date")
-                );
-                reservations.add(reservation);
+                        rs.getString("date"),
+                        rs.getString("startTime"),
+                        rs.getString("endTime"),
+                        rs.getString("status")
+                ));
             }
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to sync reservations: " + e.getMessage());
@@ -406,19 +406,27 @@ public class DataStore {
     }
 
     public static ObservableList<Reservation> getReservations() {
-        if (connection == null) {
-            initialize();
-        }
+        if (connection == null) initialize();
         syncReservationsFromDB();
         return reservations;
     }
 
+    // Legacy method (backwards compatibility)
     public static void addReservation(String username, String roomName, String date) {
-        String sql = "INSERT INTO reservations (username, room_name, date) VALUES (?, ?, ?)";
+        addReservation(username, roomName, date, "00:00", "23:59", "pending");
+    }
+
+    // NEW: Add reservation with time range and status
+    public static void addReservation(String username, String roomName, String date,
+                                      String startTime, String endTime, String status) {
+        String sql = "INSERT INTO reservations (username, room_name, date, startTime, endTime, status) VALUES (?, ?, ?, ?, ?, ?)";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, username);
             pstmt.setString(2, roomName);
             pstmt.setString(3, date);
+            pstmt.setString(4, startTime);
+            pstmt.setString(5, endTime);
+            pstmt.setString(6, status);
             pstmt.executeUpdate();
             syncReservationsFromDB();
         } catch (SQLException e) {
@@ -427,38 +435,114 @@ public class DataStore {
     }
 
     public static void addReservation(Reservation reservation) {
-        addReservation(reservation.getUsername(), reservation.getRoomName(), reservation.getDate());
+        addReservation(
+                reservation.getUsername(),
+                reservation.getRoomName(),
+                reservation.getDate(),
+                reservation.getStartTime(),
+                reservation.getEndTime(),
+                reservation.getStatus()
+        );
     }
 
-    public static java.util.List<Reservation> getReservationsByUser(String username) {
-        java.util.List<Reservation> userReservations = new java.util.ArrayList<>();
+    public static List<Reservation> getReservationsByUser(String username) {
+        List<Reservation> userReservations = new ArrayList<>();
         String sql = "SELECT * FROM reservations WHERE username = ?";
-
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, username);
             ResultSet rs = pstmt.executeQuery();
-
             while (rs.next()) {
-                Reservation reservation = new Reservation(
+                userReservations.add(new Reservation(
                         rs.getString("username"),
                         rs.getString("room_name"),
-                        rs.getString("date")
-                );
-                userReservations.add(reservation);
+                        rs.getString("date"),
+                        rs.getString("startTime"),
+                        rs.getString("endTime"),
+                        rs.getString("status")
+                ));
             }
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to get user reservations: " + e.getMessage());
         }
-
         return userReservations;
     }
 
+    // NEW: Check if a time slot conflicts with approved reservations
+    public static boolean hasConflict(String roomName, String date, String startTime, String endTime) {
+        String sql = "SELECT * FROM reservations WHERE room_name = ? AND date = ? AND status = 'approved'";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, roomName);
+            pstmt.setString(2, date);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                Reservation existing = new Reservation(
+                        rs.getString("username"),
+                        rs.getString("room_name"),
+                        rs.getString("date"),
+                        rs.getString("startTime"),
+                        rs.getString("endTime"),
+                        rs.getString("status")
+                );
+
+                if (existing.conflictsWith(date, startTime, endTime)) {
+                    return true;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DATABASE ERROR] Failed to check conflicts: " + e.getMessage());
+        }
+        return false;
+    }
+
+    // NEW: Get room status for specific date/time (for dynamic card display)
+    public static String getRoomStatusForTime(String roomName, String date, String startTime, String endTime) {
+        String sql = "SELECT * FROM reservations WHERE room_name = ? AND date = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, roomName);
+            pstmt.setString(2, date);
+            ResultSet rs = pstmt.executeQuery();
+
+            boolean hasPending = false;
+            boolean hasApproved = false;
+
+            while (rs.next()) {
+                Reservation existing = new Reservation(
+                        rs.getString("username"),
+                        rs.getString("room_name"),
+                        rs.getString("date"),
+                        rs.getString("startTime"),
+                        rs.getString("endTime"),
+                        rs.getString("status")
+                );
+
+                if (existing.conflictsWith(date, startTime, endTime)) {
+                    if ("approved".equalsIgnoreCase(existing.getStatus())) {
+                        hasApproved = true;
+                    } else if ("pending".equalsIgnoreCase(existing.getStatus())) {
+                        hasPending = true;
+                    }
+                }
+            }
+
+            if (hasApproved) return "Reserved";
+            if (hasPending) return "Pending";
+            return "Available";
+
+        } catch (SQLException e) {
+            System.err.println("[DATABASE ERROR] Failed to get room status: " + e.getMessage());
+        }
+        return "Available";
+    }
+
     public static void deleteReservation(Reservation reservation) {
-        String sql = "DELETE FROM reservations WHERE username = ? AND room_name = ? AND date = ?";
+        String sql = "DELETE FROM reservations WHERE username = ? AND room_name = ? AND date = ? AND startTime = ? AND endTime = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, reservation.getUsername());
             pstmt.setString(2, reservation.getRoomName());
             pstmt.setString(3, reservation.getDate());
+            pstmt.setString(4, reservation.getStartTime());
+            pstmt.setString(5, reservation.getEndTime());
             pstmt.executeUpdate();
             syncReservationsFromDB();
         } catch (SQLException e) {
@@ -466,8 +550,24 @@ public class DataStore {
         }
     }
 
+    // NEW: Update reservation status (pending -> approved)
+    public static void updateReservationStatus(Reservation reservation, String newStatus) {
+        String sql = "UPDATE reservations SET status = ? WHERE username = ? AND room_name = ? AND date = ? AND startTime = ? AND endTime = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, newStatus);
+            pstmt.setString(2, reservation.getUsername());
+            pstmt.setString(3, reservation.getRoomName());
+            pstmt.setString(4, reservation.getDate());
+            pstmt.setString(5, reservation.getStartTime());
+            pstmt.setString(6, reservation.getEndTime());
+            pstmt.executeUpdate();
+            syncReservationsFromDB();
+        } catch (SQLException e) {
+            System.err.println("[DATABASE ERROR] Failed to update reservation status: " + e.getMessage());
+        }
+    }
+
     public static void saveReservations() {
-        // No-op: Auto-saved to database in real-time
         System.out.println("[DATABASE] Reservations already persisted to database");
     }
 
