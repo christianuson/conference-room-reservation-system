@@ -88,7 +88,7 @@
                 </HBox>
                 <HBox spacing="8" alignment="CENTER">
                     <Label text="" style="-fx-background-color: #f44336; -fx-min-width: 20; -fx-min-height: 20; -fx-border-radius: 10; -fx-background-radius: 10;"/>
-                    <Label text="Reserved" style="-fx-font-size: 12px; -fx-font-weight: bold;"/>
+                    <Label text="Occupied" style="-fx-font-size: 12px; -fx-font-weight: bold;"/>
                 </HBox>
                 <HBox spacing="8" alignment="CENTER">
                     <Label text="" style="-fx-background-color: #FFC107; -fx-min-width: 20; -fx-min-height: 20; -fx-border-radius: 10; -fx-background-radius: 10;"/>
@@ -131,7 +131,6 @@
             <!-- Status Bar -->
             <HBox alignment="CENTER_LEFT" spacing="10"
                   style="-fx-background-color: #e0e0e0; -fx-padding: 12;">
-                <Label text="Status:"/>
                 <Label fx:id="statusLabel" text="Ready to make a reservation"
                        style="-fx-font-weight: bold;"/>
                 <Region HBox.hgrow="ALWAYS"/>
