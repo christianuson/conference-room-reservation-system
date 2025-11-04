@@ -138,7 +138,7 @@ public class UserController {
                             "-fx-cursor: hand;"
             );
             statusLabel.setTextFill(Color.BLUE);
-            statusLabel.setText("Room: " + room.getName() + " - Status: " + room.getStatus());
+            statusLabel.setText("Room: " + room.getName());
         });
 
         card.setOnMouseExited(e -> {
@@ -163,7 +163,7 @@ public class UserController {
             } else if (e.getClickCount() == 1) {
                 selectedRoom = room;
                 statusLabel.setTextFill(Color.GREEN);
-                statusLabel.setText("Selected: " + room.getName() + " (" + room.getStatus() + ")");
+                statusLabel.setText("Selected: " + room.getName());
             }
         });
 
@@ -175,7 +175,7 @@ public class UserController {
 
         if ("Available".equalsIgnoreCase(status)) {
             return baseStyle + "-fx-background-color: #4CAF50; -fx-text-fill: white;";
-        } else if ("Reserved".equalsIgnoreCase(status)) {
+        } else if ("Occupied".equalsIgnoreCase(status)) {
             return baseStyle + "-fx-background-color: #f44336; -fx-text-fill: white;";
         } else if ("Pending".equalsIgnoreCase(status)) {
             return baseStyle + "-fx-background-color: #FFC107; -fx-text-fill: white;";

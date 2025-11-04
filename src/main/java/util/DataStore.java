@@ -302,7 +302,7 @@ public class DataStore {
                     boolean overlapsNow = !now.isBefore(st) && now.isBefore(en);
 
                     if (overlapsNow) {
-                        if ("approved".equalsIgnoreCase(status)) return "Reserved";
+                        if ("approved".equalsIgnoreCase(status)) return "Occupied";
                         if ("pending".equalsIgnoreCase(status)) hasPending = true;
                     }
                 }
@@ -525,7 +525,7 @@ public class DataStore {
                 }
             }
 
-            if (hasApproved) return "Reserved";
+            if (hasApproved) return "Approved";
             if (hasPending) return "Pending";
             return "Available";
 
