@@ -2,18 +2,18 @@ package controller;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
@@ -22,6 +22,7 @@ import model.Room;
 import model.User;
 import util.DataStore;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -59,44 +60,26 @@ public class AdminController {
 
     @FXML
     public void initialize() {
-        // Window Event: Load data from JSON on open
         loadAllData();
-
-        // Setup table columns
         setupRoomTable();
         setupUserTable();
         setupReservationTable();
-
-        // attach right-click Approve/Reject on reservations
         attachReservationContextMenu();
 
-        // Set observable data for tables
         roomTable.setItems(DataStore.getRooms());
         userTable.setItems(DataStore.getUsers());
         reservationTable.setItems(DataStore.getReservations());
 
-        // Timer Event: Auto-backup every 30 seconds
         startAutoBackup();
-
-        // Timer Event: Auto-refresh dashboard data every 30 seconds
         startAutoRefresh();
-
-        // Mouse Event: Double-click reservation to open detail window
         setupReservationDoubleClick();
-
-        // Text Event: Live preview of room details
         setupLiveRoomPreview();
-
-        // Color Event: Highlight overdue reservations
         highlightOverdueReservations();
-
-        // Window Event: Setup close handler
         setupWindowCloseHandler();
 
         statusLabel.setText("Admin Dashboard loaded successfully");
     }
 
-    // -------------------- WINDOW EVENT: LOAD DATA --------------------
     private void loadAllData() {
         DataStore.loadUsers("src/main/resources/data/users.json");
         DataStore.loadRooms();
@@ -104,7 +87,6 @@ public class AdminController {
         System.out.println("[ADMIN] All data loaded from JSON files");
     }
 
-    // -------------------- TABLE SETUP --------------------
     private void setupRoomTable() {
         roomNameColumn = new TableColumn<>("Room Name");
         roomNameColumn.setCellValueFactory(new PropertyValueFactory<>("name"));
@@ -146,7 +128,6 @@ public class AdminController {
         if (resDateColumn == null) {
             resDateColumn = new TableColumn<>("Date & Time");
         }
-        // Show "YYYY-MM-DD HH:mm - HH:mm"
         resDateColumn.setCellValueFactory(cd -> {
             Reservation r = cd.getValue();
             String d  = r.getDate() == null ? "" : r.getDate();
@@ -173,9 +154,6 @@ public class AdminController {
             );
         }
     }
-
-
-    // -------------------- ACTION EVENT: ROOM MANAGEMENT --------------------
 
     private void attachReservationContextMenu() {
         ContextMenu menu = new ContextMenu();
@@ -231,7 +209,6 @@ public class AdminController {
         });
     }
 
-
     private ComboBox<String> buildStatusBox(String initial) {
         ComboBox<String> box = new ComboBox<>(
                 FXCollections.observableArrayList("Available", "Reserved", "Pending")
@@ -241,7 +218,6 @@ public class AdminController {
         return box;
     }
 
-    // Approve: only if the room tied to the selected reservation is currently Pending
     @FXML
     private void approveSelectedReservation() {
         Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
@@ -250,7 +226,6 @@ public class AdminController {
             statusLabel.setText("Select a reservation to approve.");
             return;
         }
-        // Only approve if it is currently pending
         if (!"pending".equalsIgnoreCase(sel.getStatus())) {
             statusLabel.setTextFill(Color.RED);
             statusLabel.setText("Only 'Pending' reservations can be approved.");
@@ -277,7 +252,6 @@ public class AdminController {
         statusLabel.setText("Reservation rejected.");
     }
 
-
     @FXML
     private void addRoom() {
         Dialog<Room> dialog = new Dialog<>();
@@ -295,10 +269,28 @@ public class AdminController {
         TextField nameField = new TextField();
         nameField.setPromptText("Room Name");
         ComboBox<String> statusBox = buildStatusBox("Available");
-        TextField statusField = new TextField("Available");
-        statusField.setPromptText("Status");
 
-        // Key Event: Press Enter to confirm
+        // NEW: Image selection
+        Label imageLabel = new Label("No image selected");
+        imageLabel.setStyle("-fx-text-fill: #666; -fx-font-style: italic;");
+        final String[] selectedImagePath = {null};
+
+        Button browseButton = new Button("Browse Image...");
+        browseButton.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Select Room Image");
+            fileChooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp")
+            );
+
+            File selectedFile = fileChooser.showOpenDialog(dialog.getOwner());
+            if (selectedFile != null) {
+                selectedImagePath[0] = selectedFile.getAbsolutePath();
+                imageLabel.setText(selectedFile.getName());
+                imageLabel.setStyle("-fx-text-fill: #4CAF50; -fx-font-weight: bold;");
+            }
+        });
+
         nameField.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ENTER) {
                 ((Button) dialog.getDialogPane().lookupButton(addButtonType)).fire();
@@ -309,13 +301,16 @@ public class AdminController {
         grid.add(nameField, 1, 0);
         grid.add(new Label("Status:"), 0, 1);
         grid.add(statusBox, 1, 1);
+        grid.add(new Label("Room Image:"), 0, 2);
+        grid.add(browseButton, 1, 2);
+        grid.add(imageLabel, 1, 3);
 
         dialog.getDialogPane().setContent(grid);
         Platform.runLater(nameField::requestFocus);
 
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == addButtonType) {
-                return new Room(nameField.getText(), statusBox.getValue());  // << use box value
+                return new Room(nameField.getText(), statusBox.getValue(), selectedImagePath[0]);
             }
             return null;
         });
@@ -325,8 +320,6 @@ public class AdminController {
             DataStore.addRoom(room);
             statusLabel.setTextFill(Color.GREEN);
             statusLabel.setText("Room '" + room.getName() + "' added successfully!");
-
-            // Network Event: Simulate data sync
             simulateGitHubSync("ADD_ROOM", room.getName());
         });
     }
@@ -355,12 +348,38 @@ public class AdminController {
         TextField nameField = new TextField(selected.getName());
         ComboBox<String> statusBox = buildStatusBox(selected.getStatus());
 
-        // Key Event: Press Enter to confirm edits
-        nameField.setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.ENTER) {
-                nameField.requestFocus();
+        // NEW: Image selection for editing
+        Label imageLabel = new Label(selected.getImagePath() != null ?
+                new File(selected.getImagePath()).getName() : "No image selected");
+        imageLabel.setStyle(selected.getImagePath() != null ?
+                "-fx-text-fill: #4CAF50; -fx-font-weight: bold;" :
+                "-fx-text-fill: #666; -fx-font-style: italic;");
+        final String[] selectedImagePath = {selected.getImagePath()};
+
+        Button browseButton = new Button("Change Image...");
+        browseButton.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Select Room Image");
+            fileChooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp")
+            );
+
+            File selectedFile = fileChooser.showOpenDialog(dialog.getOwner());
+            if (selectedFile != null) {
+                selectedImagePath[0] = selectedFile.getAbsolutePath();
+                imageLabel.setText(selectedFile.getName());
+                imageLabel.setStyle("-fx-text-fill: #4CAF50; -fx-font-weight: bold;");
             }
         });
+
+        Button clearImageButton = new Button("Clear Image");
+        clearImageButton.setOnAction(e -> {
+            selectedImagePath[0] = null;
+            imageLabel.setText("No image selected");
+            imageLabel.setStyle("-fx-text-fill: #666; -fx-font-style: italic;");
+        });
+
+        HBox imageButtons = new HBox(10, browseButton, clearImageButton);
 
         nameField.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ENTER) {
@@ -372,13 +391,17 @@ public class AdminController {
         grid.add(nameField, 1, 0);
         grid.add(new Label("Status:"), 0, 1);
         grid.add(statusBox, 1, 1);
+        grid.add(new Label("Room Image:"), 0, 2);
+        grid.add(imageButtons, 1, 2);
+        grid.add(imageLabel, 1, 3);
 
         dialog.getDialogPane().setContent(grid);
 
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == saveButtonType) {
                 selected.setName(nameField.getText());
-                selected.setStatus(statusBox.getValue()); // << use box value
+                selected.setStatus(statusBox.getValue());
+                selected.setImagePath(selectedImagePath[0]);
                 return selected;
             }
             return null;
@@ -390,8 +413,6 @@ public class AdminController {
             roomTable.refresh();
             statusLabel.setTextFill(Color.GREEN);
             statusLabel.setText("Room updated successfully!");
-
-            // Network Event: Simulate data sync
             simulateGitHubSync("EDIT_ROOM", room.getName());
         });
     }
@@ -415,13 +436,10 @@ public class AdminController {
             DataStore.removeRoom(selected);
             statusLabel.setTextFill(Color.ORANGE);
             statusLabel.setText("Room '" + selected.getName() + "' deleted.");
-
-            // Network Event: Simulate data sync
             simulateGitHubSync("DELETE_ROOM", selected.getName());
         }
     }
 
-    // -------------------- ACTION EVENT: USER MANAGEMENT --------------------
     @FXML
     private void removeUser() {
         User selected = userTable.getSelectionModel().getSelectedItem();
@@ -448,8 +466,6 @@ public class AdminController {
             DataStore.saveUsers();
             statusLabel.setTextFill(Color.ORANGE);
             statusLabel.setText("User '" + selected.getUsername() + "' removed.");
-
-            // Network Event: Simulate data sync
             simulateGitHubSync("REMOVE_USER", selected.getEmail());
         }
     }
@@ -470,7 +486,6 @@ public class AdminController {
         statusLabel.setText("User '" + selected.getUsername() + "' approved!");
     }
 
-    // -------------------- MOUSE EVENT: DOUBLE-CLICK RESERVATION --------------------
     private void setupReservationDoubleClick() {
         reservationTable.setRowFactory(tv -> {
             TableRow<Reservation> row = new TableRow<>();
@@ -520,14 +535,12 @@ public class AdminController {
                 reservation.getUsername() + " - " + reservation.getRoomName());
     }
 
-    // -------------------- TEXT EVENT: LIVE ROOM PREVIEW --------------------
     private void setupLiveRoomPreview() {
         if (roomNameField != null) {
             roomNameField.textProperty().addListener((obs, o, n) -> updateRoomPreview());
         }
         if (roomStatusField != null) {
             roomStatusField.valueProperty().addListener((obs, o, n) -> updateRoomPreview());
-            // ensure options exist even if not set in FXML
             if (roomStatusField.getItems().isEmpty()) {
                 roomStatusField.setItems(FXCollections.observableArrayList("Available","Reserved","Pending"));
             }
@@ -545,7 +558,6 @@ public class AdminController {
         }
     }
 
-    // -------------------- COLOR EVENT: HIGHLIGHT OVERDUE RESERVATIONS --------------------
     private void highlightOverdueReservations() {
         reservationTable.setRowFactory(tv -> new TableRow<Reservation>() {
             @Override
@@ -555,7 +567,6 @@ public class AdminController {
                 if (item == null || empty) {
                     setStyle("");
                 } else {
-                    // Simulate overdue logic: if date contains "2024" or earlier
                     if (item.getDate() != null && item.getDate().contains("2024")) {
                         setStyle("-fx-background-color: orange; -fx-text-fill: white;");
                     } else {
@@ -566,7 +577,6 @@ public class AdminController {
         });
     }
 
-    // -------------------- TIMER EVENT: AUTO-BACKUP --------------------
     private void startAutoBackup() {
         backupTask = new TimerTask() {
             public void run() {
@@ -577,10 +587,9 @@ public class AdminController {
                 });
             }
         };
-        backupTimer.schedule(backupTask, 5000, 30000); // First backup after 5s, then every 30s
+        backupTimer.schedule(backupTask, 5000, 30000);
     }
 
-    // -------------------- TIMER EVENT: AUTO-REFRESH --------------------
     private void startAutoRefresh() {
         refreshTask = new TimerTask() {
             public void run() {
@@ -594,14 +603,13 @@ public class AdminController {
                 });
             }
         };
-        refreshTimer.schedule(refreshTask, 30000, 30000); // Every 30 seconds
+        refreshTimer.schedule(refreshTask, 30000, 30000);
     }
 
-    // -------------------- NETWORK EVENT: SIMULATE GITHUB SYNC --------------------
     private void simulateGitHubSync(String action, String data) {
         new Thread(() -> {
             try {
-                Thread.sleep(1000); // Simulate network delay
+                Thread.sleep(1000);
                 Platform.runLater(() -> {
                     System.out.println("[GITHUB SYNC] POST " + action + ": " + data);
                     System.out.println("[GITHUB SYNC] Status: Success (200 OK)");
@@ -614,7 +622,6 @@ public class AdminController {
         }).start();
     }
 
-    // -------------------- REPORTS --------------------
     @FXML
     private void generateTextReport() {
         try {
@@ -676,7 +683,6 @@ public class AdminController {
         }
     }
 
-    // -------------------- WINDOW EVENT: CLOSE HANDLER --------------------
     private void setupWindowCloseHandler() {
         Platform.runLater(() -> {
             Stage stage = (Stage) statusLabel.getScene().getWindow();
@@ -685,7 +691,6 @@ public class AdminController {
     }
 
     private void handleWindowClose(WindowEvent event) {
-        // Save all data and logs
         DataStore.saveAll();
 
         try {
@@ -699,7 +704,6 @@ public class AdminController {
             e.printStackTrace();
         }
 
-        // Cancel timers
         if (backupTask != null) backupTask.cancel();
         if (refreshTask != null) refreshTask.cancel();
         backupTimer.cancel();
@@ -718,24 +722,19 @@ public class AdminController {
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
             try {
-                // Save current data
                 DataStore.saveAll();
 
-                // Stop background timers when leaving this dashboard
                 if (backupTask != null) backupTask.cancel();
                 if (refreshTask != null) refreshTask.cancel();
                 backupTimer.cancel();
                 refreshTimer.cancel();
 
-                // Load login screen
                 javafx.fxml.FXMLLoader loader =
                         new javafx.fxml.FXMLLoader(getClass().getResource("/view/login.fxml"));
                 javafx.scene.Parent loginRoot = loader.load();
 
-                // Reuse the same Stage (window)
                 Stage stage = (Stage) statusLabel.getScene().getWindow();
                 stage.setTitle("Login");
-                // Keep current window size; or set a fixed size if you prefer:
                 stage.setWidth(540); stage.setHeight(570);
                 stage.setScene(new javafx.scene.Scene(loginRoot));
                 stage.centerOnScreen();
