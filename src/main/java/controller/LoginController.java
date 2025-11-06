@@ -34,16 +34,18 @@ public class LoginController {
     @FXML private PasswordField signupPasswordField;
     @FXML private Label registerStatusLabel;
     @FXML private Button registerButton;
+    @FXML private TextField passwordVisibleField;
+    @FXML private CheckBox showPasswordCheck;
 
     private int idleTime = 0;
-    private Timer idleTimer = new Timer(true); // daemon thread
+    private Timer idleTimer = new Timer(true);
     private TimerTask currentIdleTask;
 
     // -------------------- INITIALIZATION --------------------
     @FXML
     public void initialize() {
-        // Window Event: Load users from JSON file on open
-        DataStore.loadUsers("src/main/resources/data/users.json");
+        // Initialize database connection
+        DataStore.initialize();
 
         // Start idle timer
         startIdleTimer();
@@ -58,6 +60,18 @@ public class LoginController {
         passwordField.textProperty().addListener((obs, oldV, newV) -> {
             resetIdleTimer();
             validatePasswordField(passwordField, newV);
+        });
+
+        // Keep both fields in sync
+        passwordVisibleField.textProperty().bindBidirectional(passwordField.textProperty());
+
+        // Toggle visibility/managed so layout doesn’t shift
+        showPasswordCheck.selectedProperty().addListener((obs, wasChecked, isChecked) -> {
+            passwordVisibleField.setVisible(isChecked);
+            passwordVisibleField.setManaged(isChecked);
+
+            passwordField.setVisible(!isChecked);
+            passwordField.setManaged(!isChecked);
         });
 
         // Text Event: Real-time email validation for registration
@@ -110,12 +124,9 @@ public class LoginController {
         }
 
         if (!Validator.isValidEmail(email)) {
-            // Color Event: Red border on invalid email
             field.setStyle("-fx-border-color: red; -fx-border-width: 2;");
         } else {
-            // Color Event: Green border on valid email
             field.setStyle("-fx-border-color: green; -fx-border-width: 2;");
-            // Network Event: Simulate checking email via dummy API
             simulateEmailCheckAPI(email);
         }
     }
@@ -128,10 +139,8 @@ public class LoginController {
         }
 
         if (password.length() < 6) {
-            // Color Event: Red border on invalid password
             field.setStyle("-fx-border-color: red; -fx-border-width: 2;");
         } else {
-            // Color Event: Green border on valid password
             field.setStyle("-fx-border-color: green; -fx-border-width: 2;");
         }
     }
@@ -169,20 +178,16 @@ public class LoginController {
 
         boolean isValid = DataStore.validateUser(email, pass);
         if (!isValid) {
-            // Color Event: Red status on invalid login
             setStatus(statusLabel, "Invalid login credentials!", "red");
             emailField.setStyle("-fx-border-color: red; -fx-border-width: 2;");
             passwordField.setStyle("-fx-border-color: red; -fx-border-width: 2;");
         } else {
-            // Color Event: Green highlights on successful login
             setStatus(statusLabel, "Login Successful!", "green");
             emailField.setStyle("-fx-border-color: green; -fx-border-width: 2;");
             passwordField.setStyle("-fx-border-color: green; -fx-border-width: 2;");
 
-            // Stop idle timer before switching scenes
             stopIdleTimer();
 
-            // Action Event: Switch to appropriate dashboard based on role
             if (DataStore.isAdmin(email)) {
                 System.out.println("Opening Admin Dashboard...");
                 switchToAdminDashboard();
@@ -226,14 +231,12 @@ public class LoginController {
         }
 
         DataStore.addUser(username, email, pass, "user");
-        // Color Event: Green status on successful registration
         setStatus(registerStatusLabel, "Account created! You can now log in.", "green");
 
         usernameField.clear();
         signupEmailField.clear();
         signupPasswordField.clear();
 
-        // Reset field styles
         usernameField.setStyle("");
         signupEmailField.setStyle("");
         signupPasswordField.setStyle("");
@@ -280,19 +283,15 @@ public class LoginController {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/user_dashboard.fxml"));
             Parent root = loader.load();
 
-            // Get the controller and set current user
             UserController controller = loader.getController();
-            User currentUser = DataStore.getUsers().stream()
-                    .filter(u -> u.getEmail().equals(email))
-                    .findFirst()
-                    .orElse(null);
+            User currentUser = DataStore.getUserByEmail(email);
 
             if (currentUser != null) {
                 controller.setCurrentUser(currentUser);
             }
 
             Stage stage = (Stage) loginPane.getScene().getWindow();
-            stage.setScene(new Scene(root, 800, 500));
+            stage.setScene(new Scene(root, 1000, 700));
             stage.setTitle("User Dashboard");
         } catch (IOException e) {
             e.printStackTrace();
@@ -309,7 +308,6 @@ public class LoginController {
             stage.setScene(new Scene(root, 800, 500));
             stage.setTitle("Admin Dashboard");
 
-            // Network Event: Simulate syncing admin user list online
             simulateAdminSyncAPI();
         } catch (IOException e) {
             e.printStackTrace();
@@ -344,7 +342,6 @@ public class LoginController {
                         clearLoginFields();
                         clearRegisterFields();
 
-                        // Switch to login pane if on register pane
                         if (registerPane.isVisible()) {
                             registerPane.setVisible(false);
                             loginPane.setVisible(true);
@@ -354,7 +351,7 @@ public class LoginController {
                 }
             }
         };
-        idleTimer.schedule(currentIdleTask, 0, 5000); // Check every 5 seconds
+        idleTimer.schedule(currentIdleTask, 0, 5000);
     }
 
     private void resetIdleTimer() {
@@ -377,18 +374,18 @@ public class LoginController {
 
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() != ButtonType.OK) {
-            event.consume(); // Cancel the close event
+            event.consume();
         } else {
             stopIdleTimer();
+            DataStore.closeConnection();
         }
     }
 
     // -------------------- NETWORK EVENT: SIMULATE API CALLS --------------------
     private void simulateEmailCheckAPI(String email) {
-        // Simulate network delay and API call
         new Thread(() -> {
             try {
-                Thread.sleep(500); // Simulate network delay
+                Thread.sleep(500);
                 Platform.runLater(() -> {
                     System.out.println("[API] Checking email: " + email + " - Email format valid");
                 });
@@ -399,10 +396,9 @@ public class LoginController {
     }
 
     private void simulateAdminSyncAPI() {
-        // Network Event: Simulate syncing admin user list online
         new Thread(() -> {
             try {
-                Thread.sleep(1000); // Simulate network delay
+                Thread.sleep(1000);
                 Platform.runLater(() -> {
                     System.out.println("[API] Admin user list synced successfully");
                     System.out.println("[API] Total users: " + DataStore.getUsers().size());

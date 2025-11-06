@@ -4,26 +4,104 @@
 <?import javafx.scene.control.*?>
 <?import javafx.geometry.*?>
 
-<GridPane xmlns:fx="http://javafx.com/fxml"
-          fx:controller="controller.ReservationFormController"
-          alignment="CENTER"
-          hgap="10" vgap="10"
-          style="-fx-padding: 20;">
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="controller.ReservationFormController"
+      spacing="20"
+      prefHeight="1000"
+      prefWidth="500"
+      style="-fx-background-color: #f5f5f5;">
 
-    <Label text="Room Name:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
-    <TextField fx:id="roomNameField" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+    <padding>
+        <Insets topRightBottomLeft="25"/>
+    </padding>
 
-    <Label text="Date:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
-    <DatePicker fx:id="datePicker" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+    <!-- Header -->
+    <VBox spacing="10" alignment="CENTER"
+          style="-fx-background-color: rgb(244,211,211); -fx-padding: 15; -fx-background-radius: 5;">
+        <Label text="Room Reservation Form"
+               style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: rgba(60,10,10,0.98);"/>
+        <Label fx:id="roomNameLabel" text="Conference Room A"
+               style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: white;"/>
+    </VBox>
 
-    <Label text="Time:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
-    <TextField fx:id="timeField" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+    <!-- Form Fields -->
+    <VBox spacing="15" style="-fx-background-color: white; -fx-padding: 20; -fx-border-color: #ddd; -fx-border-width: 1; -fx-border-radius: 5; -fx-background-radius: 5;">
 
-    <Label text="Customer Name:" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
-    <TextField fx:id="customerField" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+        <VBox spacing="5">
+            <Label text="Date:" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+            <DatePicker fx:id="datePicker" promptText="Select reservation date"
+                        prefWidth="380"
+                        style="-fx-padding: 8; -fx-font-size: 13px;"/>
+        </VBox>
 
-    <Button text="Reserve" fx:id="reserveButton" onAction="#handleReservation"
-            GridPane.rowIndex="4" GridPane.columnIndex="1" GridPane.halignment="RIGHT"/>
+        <!-- NEW: Start Time -->
+        <VBox spacing="5">
+            <Label text="Start Time:" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <ComboBox fx:id="startHourCombo" promptText="Hour" prefWidth="80"/>
+                <Label text=":" style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
+                <ComboBox fx:id="startMinuteCombo" promptText="Min" prefWidth="80"/>
+            </HBox>
+            <Label text="💡 Select start time for your reservation"
+                   style="-fx-font-size: 11px; -fx-text-fill: #666; -fx-font-style: italic;"/>
+        </VBox>
 
-    <Label fx:id="statusLabel" GridPane.rowIndex="5" GridPane.columnIndex="1" textFill="gray"/>
-</GridPane>
+        <!-- NEW: End Time -->
+        <VBox spacing="5">
+            <Label text="End Time:" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <ComboBox fx:id="endHourCombo" promptText="Hour" prefWidth="80"/>
+                <Label text=":" style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
+                <ComboBox fx:id="endMinuteCombo" promptText="Min" prefWidth="80"/>
+            </HBox>
+            <Label text="💡 Select end time for your reservation"
+                   style="-fx-font-size: 11px; -fx-text-fill: #666; -fx-font-style: italic;"/>
+        </VBox>
+
+        <VBox spacing="5">
+            <Label text="Customer Name:" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+            <TextField fx:id="customerField" promptText="Enter your name"
+                       style="-fx-padding: 8; -fx-font-size: 13px;"/>
+        </VBox>
+
+        <VBox spacing="5">
+            <Label text="Additional Notes (Optional):" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+            <TextArea fx:id="notesField" promptText="Add any special requirements or notes..."
+                      prefRowCount="3"
+                      wrapText="true"
+                      style="-fx-font-size: 13px;"/>
+        </VBox>
+
+        <!-- Conflict Warning -->
+        <Label fx:id="conflictWarningLabel" text=""
+               wrapText="true"
+               style="-fx-text-fill: #f44336; -fx-font-weight: bold; -fx-font-size: 12px;"
+               visible="false" managed="false"/>
+    </VBox>
+
+    <!-- Preview Section -->
+    <VBox spacing="8" style="-fx-background-color: #e8f5e9; -fx-padding: 15; -fx-border-color: #af4c4c; -fx-border-width: 2; -fx-border-radius: 5; -fx-background-radius: 5;">
+        <Label text="📋 Booking Preview"
+               style="-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #2E7D32;"/>
+        <Label fx:id="bookingPreviewLabel" text="Fill in the form to see preview"
+               wrapText="true"
+               style="-fx-font-style: italic; -fx-text-fill: #666; -fx-font-size: 12px;"/>
+    </VBox>
+
+    <!-- Action Buttons -->
+    <HBox spacing="15" alignment="CENTER">
+        <Button fx:id="reserveButton" text="✓ Reserve Room" onAction="#handleReservation"
+                prefWidth="180" prefHeight="40"
+                style="-fx-background-color: #a51618; -fx-text-fill: white; -fx-font-size: 15px; -fx-font-weight: bold; -fx-background-radius: 5;"/>
+        <Button text="✗ Cancel" onAction="#handleCancel"
+                prefWidth="120" prefHeight="40"
+                style="-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-size: 15px; -fx-font-weight: bold; -fx-background-radius: 5;"/>
+    </HBox>
+
+    <!-- Status Label -->
+    <Label fx:id="statusLabel" text=""
+           wrapText="true"
+           alignment="CENTER"
+           style="-fx-font-size: 13px; -fx-font-weight: bold;"/>
+
+</VBox>
