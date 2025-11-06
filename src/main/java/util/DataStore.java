@@ -53,13 +53,22 @@ public class DataStore {
                 ")";
         stmt.execute(createUsersTable);
 
-        // Create Rooms table
+        // Create Rooms table with imagePath column
         String createRoomsTable = "CREATE TABLE IF NOT EXISTS rooms (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "name TEXT NOT NULL UNIQUE," +
-                "status TEXT NOT NULL" +
+                "status TEXT NOT NULL," +
+                "imagePath TEXT" +
                 ")";
         stmt.execute(createRoomsTable);
+
+        // Check if imagePath column exists, add it if not (for existing databases)
+        try {
+            stmt.execute("ALTER TABLE rooms ADD COLUMN imagePath TEXT");
+            System.out.println("[DATABASE] Added imagePath column to rooms table");
+        } catch (SQLException e) {
+            // Column already exists, ignore
+        }
 
         // Create Reservations table with time range and status
         String createReservationsTable = "CREATE TABLE IF NOT EXISTS reservations (" +
@@ -79,11 +88,11 @@ public class DataStore {
 
     private static void initializeSampleData() throws SQLException {
         if (countRooms() == 0) {
-            addRoom(new Room("Conference Room A", "Available"));
-            addRoom(new Room("Conference Room B", "Available"));
-            addRoom(new Room("Conference Room C", "Available"));
-            addRoom(new Room("Meeting Room 1", "Available"));
-            addRoom(new Room("Meeting Room 2", "Available"));
+            addRoom(new Room("Conference Room A", "Available", null));
+            addRoom(new Room("Conference Room B", "Available", null));
+            addRoom(new Room("Conference Room C", "Available", null));
+            addRoom(new Room("Meeting Room 1", "Available", null));
+            addRoom(new Room("Meeting Room 2", "Available", null));
             System.out.println("[DATABASE] Sample rooms initialized");
         }
 
@@ -113,7 +122,7 @@ public class DataStore {
         return count;
     }
 
-    // -------------------- USER METHODS (unchanged) --------------------
+    // -------------------- USER METHODS --------------------
     public static void loadUsers(String filePath) {
         if (connection == null) initialize();
         syncUsersFromDB();
@@ -250,7 +259,7 @@ public class DataStore {
         deleteUser(user.getEmail());
     }
 
-    // -------------------- ROOM METHODS (unchanged) --------------------
+    // -------------------- ROOM METHODS --------------------
     public static void loadRooms() {
         if (connection == null) initialize();
         syncRoomsFromDB();
@@ -264,7 +273,8 @@ public class DataStore {
             while (rs.next()) {
                 rooms.add(new Room(
                         rs.getString("name"),
-                        rs.getString("status")
+                        rs.getString("status"),
+                        rs.getString("imagePath")
                 ));
             }
         } catch (SQLException e) {
@@ -289,10 +299,10 @@ public class DataStore {
                 DateTimeFormatter tf = DateTimeFormatter.ofPattern("H:mm").withResolverStyle(java.time.format.ResolverStyle.LENIENT);
 
                 while (rs.next()) {
-                    String dateStr = rs.getString("date");         // yyyy-MM-dd
-                    String stStr   = rs.getString("startTime");    // HH:mm
-                    String enStr   = rs.getString("endTime");      // HH:mm
-                    String status  = rs.getString("status");       // pending / approved / rejected
+                    String dateStr = rs.getString("date");
+                    String stStr   = rs.getString("startTime");
+                    String enStr   = rs.getString("endTime");
+                    String status  = rs.getString("status");
 
                     if (dateStr == null || stStr == null || enStr == null) continue;
                     if (!today.toString().equals(dateStr)) continue;
@@ -314,10 +324,11 @@ public class DataStore {
     }
 
     public static void addRoom(Room room) {
-        String sql = "INSERT INTO rooms (name, status) VALUES (?, ?)";
+        String sql = "INSERT INTO rooms (name, status, imagePath) VALUES (?, ?, ?)";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, room.getName());
             pstmt.setString(2, room.getStatus());
+            pstmt.setString(3, room.getImagePath());
             pstmt.executeUpdate();
             syncRoomsFromDB();
         } catch (SQLException e) {
@@ -338,10 +349,11 @@ public class DataStore {
 
     public static void saveRooms() {
         for (Room room : rooms) {
-            String sql = "UPDATE rooms SET status = ? WHERE name = ?";
+            String sql = "UPDATE rooms SET status = ?, imagePath = ? WHERE name = ?";
             try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
                 pstmt.setString(1, room.getStatus());
-                pstmt.setString(2, room.getName());
+                pstmt.setString(2, room.getImagePath());
+                pstmt.setString(3, room.getName());
                 pstmt.executeUpdate();
             } catch (SQLException e) {
                 System.err.println("[DATABASE ERROR] Failed to save room: " + e.getMessage());
@@ -358,7 +370,8 @@ public class DataStore {
             if (rs.next()) {
                 return new Room(
                         rs.getString("name"),
-                        rs.getString("status")
+                        rs.getString("status"),
+                        rs.getString("imagePath")
                 );
             }
         } catch (SQLException e) {
@@ -368,10 +381,11 @@ public class DataStore {
     }
 
     public static void updateRoom(Room room) {
-        String sql = "UPDATE rooms SET status = ? WHERE name = ?";
+        String sql = "UPDATE rooms SET status = ?, imagePath = ? WHERE name = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, room.getStatus());
-            pstmt.setString(2, room.getName());
+            pstmt.setString(2, room.getImagePath());
+            pstmt.setString(3, room.getName());
             pstmt.executeUpdate();
             syncRoomsFromDB();
         } catch (SQLException e) {
@@ -379,7 +393,7 @@ public class DataStore {
         }
     }
 
-    // -------------------- RESERVATION METHODS (WITH TIME RANGE) --------------------
+    // -------------------- RESERVATION METHODS --------------------
     public static void loadReservations() {
         if (connection == null) initialize();
         syncReservationsFromDB();
@@ -411,12 +425,10 @@ public class DataStore {
         return reservations;
     }
 
-    // Legacy method (backwards compatibility)
     public static void addReservation(String username, String roomName, String date) {
         addReservation(username, roomName, date, "00:00", "23:59", "pending");
     }
 
-    // NEW: Add reservation with time range and status
     public static void addReservation(String username, String roomName, String date,
                                       String startTime, String endTime, String status) {
         String sql = "INSERT INTO reservations (username, room_name, date, startTime, endTime, status) VALUES (?, ?, ?, ?, ?, ?)";
@@ -467,7 +479,6 @@ public class DataStore {
         return userReservations;
     }
 
-    // NEW: Check if a time slot conflicts with approved reservations
     public static boolean hasConflict(String roomName, String date, String startTime, String endTime) {
         String sql = "SELECT * FROM reservations WHERE room_name = ? AND date = ? AND status = 'approved'";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
@@ -495,7 +506,6 @@ public class DataStore {
         return false;
     }
 
-    // NEW: Get room status for specific date/time (for dynamic card display)
     public static String getRoomStatusForTime(String roomName, String date, String startTime, String endTime) {
         String sql = "SELECT * FROM reservations WHERE room_name = ? AND date = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
@@ -550,7 +560,6 @@ public class DataStore {
         }
     }
 
-    // NEW: Update reservation status (pending -> approved)
     public static void updateReservationStatus(Reservation reservation, String newStatus) {
         String sql = "UPDATE reservations SET status = ? WHERE username = ? AND room_name = ? AND date = ? AND startTime = ? AND endTime = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
