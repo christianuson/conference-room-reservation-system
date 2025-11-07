@@ -233,6 +233,11 @@ public class LoginController {
         DataStore.addUser(username, email, pass, "user");
         setStatus(registerStatusLabel, "Account created! You can now log in.", "green");
 
+        // Send welcome email after successful signup
+        User newUser = new User(username, email, pass, "user");
+        util.EmailService.getInstance().sendWelcomeEmail(newUser);
+        System.out.println("[EMAIL] Welcome email triggered for: " + email);
+
         usernameField.clear();
         signupEmailField.clear();
         signupPasswordField.clear();

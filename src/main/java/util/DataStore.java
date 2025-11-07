@@ -9,13 +9,32 @@ import model.User;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 
+/**
+ * MySQL Database Manager for Conference Room System
+ * Migrated from SQLite to MySQL for network database support
+ */
 public class DataStore {
-    private static final String DB_URL = "jdbc:sqlite:conference_room.db";
+    // MySQL Connection Configuration
+    private static final String DB_HOST = System.getenv("DB_HOST") != null ?
+            System.getenv("DB_HOST") : "localhost";
+    private static final String DB_PORT = System.getenv("DB_PORT") != null ?
+            System.getenv("DB_PORT") : "3306";
+    private static final String DB_NAME = System.getenv("DB_NAME") != null ?
+            System.getenv("DB_NAME") : "conference_room_db";
+    private static final String DB_USER = System.getenv("DB_USER") != null ?
+            System.getenv("DB_USER") : "root";
+    private static final String DB_PASSWORD = System.getenv("DB_PASSWORD") != null ?
+            System.getenv("DB_PASSWORD") : "";
+
+    private static final String DB_URL = String.format(
+            "jdbc:mysql://%s:%s/%s?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true",
+            DB_HOST, DB_PORT, DB_NAME
+    );
+
     private static Connection connection;
 
     private static final ObservableList<User> userList = FXCollections.observableArrayList();
@@ -25,17 +44,25 @@ public class DataStore {
     // -------------------- INITIALIZATION --------------------
     public static void initialize() {
         try {
-            Class.forName("org.sqlite.JDBC");
-            connection = DriverManager.getConnection(DB_URL);
-            System.out.println("[DATABASE] Connected to SQLite database");
+            // Load MySQL JDBC Driver
+            Class.forName("com.mysql.cj.jdbc.Driver");
+
+            // Establish connection
+            connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+            System.out.println("[DATABASE] Connected to MySQL database");
+            System.out.println("[DATABASE] Host: " + DB_HOST + ":" + DB_PORT);
+            System.out.println("[DATABASE] Database: " + DB_NAME);
 
             createTables();
             initializeSampleData();
         } catch (ClassNotFoundException e) {
-            System.err.println("[DATABASE ERROR] SQLite JDBC driver not found!");
+            System.err.println("[DATABASE ERROR] MySQL JDBC driver not found!");
+            System.err.println("[DATABASE ERROR] Add MySQL Connector/J to your classpath");
             e.printStackTrace();
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Connection failed!");
+            System.err.println("[DATABASE ERROR] Check your MySQL server is running and credentials are correct");
+            System.err.println("[DATABASE ERROR] Connection URL: " + DB_URL);
             e.printStackTrace();
         }
     }
@@ -44,46 +71,59 @@ public class DataStore {
         Statement stmt = connection.createStatement();
 
         // Create Users table
-        String createUsersTable = "CREATE TABLE IF NOT EXISTS users (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "username TEXT NOT NULL," +
-                "email TEXT NOT NULL UNIQUE," +
-                "password TEXT NOT NULL," +
-                "role TEXT NOT NULL" +
-                ")";
+        String createUsersTable = """
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(100) NOT NULL,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                password VARCHAR(255) NOT NULL,
+                role VARCHAR(50) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_email (email),
+                INDEX idx_role (role)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """;
         stmt.execute(createUsersTable);
 
-        // Create Rooms table with imagePath column
-        String createRoomsTable = "CREATE TABLE IF NOT EXISTS rooms (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "name TEXT NOT NULL UNIQUE," +
-                "status TEXT NOT NULL," +
-                "imagePath TEXT" +
-                ")";
+        // Create Rooms table
+        String createRoomsTable = """
+            CREATE TABLE IF NOT EXISTS rooms (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL UNIQUE,
+                status VARCHAR(50) NOT NULL,
+                imagePath TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_name (name),
+                INDEX idx_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """;
         stmt.execute(createRoomsTable);
 
-        // Check if imagePath column exists, add it if not (for existing databases)
-        try {
-            stmt.execute("ALTER TABLE rooms ADD COLUMN imagePath TEXT");
-            System.out.println("[DATABASE] Added imagePath column to rooms table");
-        } catch (SQLException e) {
-            // Column already exists, ignore
-        }
-
-        // Create Reservations table with time range and status
-        String createReservationsTable = "CREATE TABLE IF NOT EXISTS reservations (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "username TEXT NOT NULL," +
-                "room_name TEXT NOT NULL," +
-                "date TEXT NOT NULL," +
-                "startTime TEXT NOT NULL DEFAULT '00:00'," +
-                "endTime TEXT NOT NULL DEFAULT '23:59'," +
-                "status TEXT NOT NULL DEFAULT 'pending'" +
-                ")";
+        // Create Reservations table
+        String createReservationsTable = """
+            CREATE TABLE IF NOT EXISTS reservations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(100) NOT NULL,
+                room_name VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                startTime TIME NOT NULL,
+                endTime TIME NOT NULL,
+                status VARCHAR(50) NOT NULL DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_username (username),
+                INDEX idx_room_name (room_name),
+                INDEX idx_date (date),
+                INDEX idx_status (status),
+                INDEX idx_room_date (room_name, date),
+                FOREIGN KEY (room_name) REFERENCES rooms(name) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """;
         stmt.execute(createReservationsTable);
 
         stmt.close();
-        System.out.println("[DATABASE] Tables created successfully");
+        System.out.println("[DATABASE] Tables created successfully with indexes");
     }
 
     private static void initializeSampleData() throws SQLException {
@@ -106,20 +146,18 @@ public class DataStore {
 
     private static int countUsers() throws SQLException {
         String sql = "SELECT COUNT(*) FROM users";
-        Statement stmt = connection.createStatement();
-        ResultSet rs = stmt.executeQuery(sql);
-        int count = rs.getInt(1);
-        stmt.close();
-        return count;
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
     }
 
     private static int countRooms() throws SQLException {
         String sql = "SELECT COUNT(*) FROM rooms";
-        Statement stmt = connection.createStatement();
-        ResultSet rs = stmt.executeQuery(sql);
-        int count = rs.getInt(1);
-        stmt.close();
-        return count;
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
     }
 
     // -------------------- USER METHODS --------------------
@@ -130,7 +168,7 @@ public class DataStore {
 
     private static void syncUsersFromDB() {
         userList.clear();
-        String sql = "SELECT * FROM users";
+        String sql = "SELECT * FROM users ORDER BY id";
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
@@ -143,6 +181,7 @@ public class DataStore {
             }
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to sync users: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -186,8 +225,17 @@ public class DataStore {
             pstmt.setString(4, role);
             pstmt.executeUpdate();
             syncUsersFromDB();
+
+            // Send welcome email for new users
+            if ("user".equalsIgnoreCase(role)) {
+                User newUser = getUserByEmail(email);
+                if (newUser != null) {
+                    EmailService.getInstance().sendWelcomeEmail(newUser);
+                }
+            }
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to add user: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -227,7 +275,7 @@ public class DataStore {
     }
 
     public static void saveUsers() {
-        System.out.println("[DATABASE] Users already persisted to database");
+        System.out.println("[DATABASE] Users already persisted to MySQL database");
     }
 
     public static void updateUser(User user) {
@@ -244,19 +292,28 @@ public class DataStore {
         }
     }
 
-    public static void deleteUser(String email) {
+    public static void deleteUser(User user) {
+        if (connection == null) initialize();
         String sql = "DELETE FROM users WHERE email = ?";
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, email);
-            pstmt.executeUpdate();
-            syncUsersFromDB();
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, user.getEmail());
+            int rows = stmt.executeUpdate();
+
+            if (rows > 0) {
+                userList.remove(user); // keep local list in sync
+                System.out.println("[DATABASE] User deleted from MySQL: " + user.getEmail());
+            } else {
+                System.out.println("[DATABASE] No user found to delete: " + user.getEmail());
+            }
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to delete user: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
     public static void removeUser(User user) {
-        deleteUser(user.getEmail());
+        deleteUser(user);
+        syncUsersFromDB();
     }
 
     // -------------------- ROOM METHODS --------------------
@@ -267,7 +324,7 @@ public class DataStore {
 
     private static void syncRoomsFromDB() {
         rooms.clear();
-        String sql = "SELECT * FROM rooms";
+        String sql = "SELECT * FROM rooms ORDER BY id";
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
@@ -296,16 +353,18 @@ public class DataStore {
             try (ResultSet rs = ps.executeQuery()) {
                 LocalDate today = LocalDate.now();
                 LocalTime now = LocalTime.now();
-                DateTimeFormatter tf = DateTimeFormatter.ofPattern("H:mm").withResolverStyle(java.time.format.ResolverStyle.LENIENT);
+                DateTimeFormatter tf = DateTimeFormatter.ofPattern("H:mm[:ss]")
+                        .withResolverStyle(java.time.format.ResolverStyle.LENIENT);
 
                 while (rs.next()) {
-                    String dateStr = rs.getString("date");
-                    String stStr   = rs.getString("startTime");
-                    String enStr   = rs.getString("endTime");
-                    String status  = rs.getString("status");
+                    Date dateObj = rs.getDate("date");
+                    String stStr = rs.getString("startTime");
+                    String enStr = rs.getString("endTime");
+                    String status = rs.getString("status");
 
-                    if (dateStr == null || stStr == null || enStr == null) continue;
-                    if (!today.toString().equals(dateStr)) continue;
+                    if (dateObj == null || stStr == null || enStr == null) continue;
+                    LocalDate resDate = dateObj.toLocalDate();
+                    if (!today.equals(resDate)) continue;
 
                     LocalTime st = LocalTime.parse(stStr, tf);
                     LocalTime en = LocalTime.parse(enStr, tf);
@@ -359,7 +418,7 @@ public class DataStore {
                 System.err.println("[DATABASE ERROR] Failed to save room: " + e.getMessage());
             }
         }
-        System.out.println("[DATABASE] Rooms saved to database");
+        System.out.println("[DATABASE] Rooms saved to MySQL database");
     }
 
     public static Room getRoomByName(String name) {
@@ -401,14 +460,14 @@ public class DataStore {
 
     private static void syncReservationsFromDB() {
         reservations.clear();
-        String sql = "SELECT * FROM reservations";
+        String sql = "SELECT * FROM reservations ORDER BY date DESC, startTime DESC";
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 reservations.add(new Reservation(
                         rs.getString("username"),
                         rs.getString("room_name"),
-                        rs.getString("date"),
+                        rs.getDate("date").toString(),
                         rs.getString("startTime"),
                         rs.getString("endTime"),
                         rs.getString("status")
@@ -435,12 +494,19 @@ public class DataStore {
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, username);
             pstmt.setString(2, roomName);
-            pstmt.setString(3, date);
-            pstmt.setString(4, startTime);
-            pstmt.setString(5, endTime);
+            pstmt.setDate(3, Date.valueOf(date));
+            pstmt.setTime(4, Time.valueOf(startTime + ":00"));
+            pstmt.setTime(5, Time.valueOf(endTime + ":00"));
             pstmt.setString(6, status);
             pstmt.executeUpdate();
             syncReservationsFromDB();
+
+            // Send confirmation email
+            User user = getUserByUsername(username);
+            if (user != null) {
+                Reservation newRes = new Reservation(username, roomName, date, startTime, endTime, status);
+                EmailService.getInstance().sendReservationConfirmation(user, newRes);
+            }
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to add reservation: " + e.getMessage());
         }
@@ -457,9 +523,29 @@ public class DataStore {
         );
     }
 
+    public static User getUserByUsername(String username) {
+        if (connection == null) initialize();
+        String sql = "SELECT * FROM users WHERE username = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return new User(
+                        rs.getString("username"),
+                        rs.getString("email"),
+                        rs.getString("password"),
+                        rs.getString("role")
+                );
+            }
+        } catch (SQLException e) {
+            System.err.println("[DATABASE ERROR] Failed to get user by username: " + e.getMessage());
+        }
+        return null;
+    }
+
     public static List<Reservation> getReservationsByUser(String username) {
         List<Reservation> userReservations = new ArrayList<>();
-        String sql = "SELECT * FROM reservations WHERE username = ?";
+        String sql = "SELECT * FROM reservations WHERE username = ? ORDER BY date DESC, startTime DESC";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, username);
             ResultSet rs = pstmt.executeQuery();
@@ -467,7 +553,7 @@ public class DataStore {
                 userReservations.add(new Reservation(
                         rs.getString("username"),
                         rs.getString("room_name"),
-                        rs.getString("date"),
+                        rs.getDate("date").toString(),
                         rs.getString("startTime"),
                         rs.getString("endTime"),
                         rs.getString("status")
@@ -483,14 +569,14 @@ public class DataStore {
         String sql = "SELECT * FROM reservations WHERE room_name = ? AND date = ? AND status = 'approved'";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, roomName);
-            pstmt.setString(2, date);
+            pstmt.setDate(2, Date.valueOf(date));
             ResultSet rs = pstmt.executeQuery();
 
             while (rs.next()) {
                 Reservation existing = new Reservation(
                         rs.getString("username"),
                         rs.getString("room_name"),
-                        rs.getString("date"),
+                        rs.getDate("date").toString(),
                         rs.getString("startTime"),
                         rs.getString("endTime"),
                         rs.getString("status")
@@ -510,7 +596,7 @@ public class DataStore {
         String sql = "SELECT * FROM reservations WHERE room_name = ? AND date = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, roomName);
-            pstmt.setString(2, date);
+            pstmt.setDate(2, Date.valueOf(date));
             ResultSet rs = pstmt.executeQuery();
 
             boolean hasPending = false;
@@ -520,7 +606,7 @@ public class DataStore {
                 Reservation existing = new Reservation(
                         rs.getString("username"),
                         rs.getString("room_name"),
-                        rs.getString("date"),
+                        rs.getDate("date").toString(),
                         rs.getString("startTime"),
                         rs.getString("endTime"),
                         rs.getString("status")
@@ -550,11 +636,17 @@ public class DataStore {
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, reservation.getUsername());
             pstmt.setString(2, reservation.getRoomName());
-            pstmt.setString(3, reservation.getDate());
-            pstmt.setString(4, reservation.getStartTime());
-            pstmt.setString(5, reservation.getEndTime());
+            pstmt.setDate(3, Date.valueOf(reservation.getDate()));
+            pstmt.setTime(4, Time.valueOf(reservation.getStartTime() + ":00"));
+            pstmt.setTime(5, Time.valueOf(reservation.getEndTime() + ":00"));
             pstmt.executeUpdate();
             syncReservationsFromDB();
+
+            // Send cancellation email
+            User user = getUserByUsername(reservation.getUsername());
+            if (user != null) {
+                EmailService.getInstance().sendReservationCancellation(user, reservation);
+            }
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to delete reservation: " + e.getMessage());
         }
@@ -566,18 +658,36 @@ public class DataStore {
             pstmt.setString(1, newStatus);
             pstmt.setString(2, reservation.getUsername());
             pstmt.setString(3, reservation.getRoomName());
-            pstmt.setString(4, reservation.getDate());
-            pstmt.setString(5, reservation.getStartTime());
-            pstmt.setString(6, reservation.getEndTime());
+            pstmt.setDate(4, Date.valueOf(reservation.getDate()));
+            pstmt.setTime(5, safeParseTime(reservation.getStartTime()));
+            pstmt.setTime(6, safeParseTime(reservation.getEndTime()));
             pstmt.executeUpdate();
             syncReservationsFromDB();
+
+            // Send appropriate email based on new status
+            User user = getUserByUsername(reservation.getUsername());
+            if (user != null) {
+                reservation.setStatus(newStatus);
+                if ("approved".equalsIgnoreCase(newStatus) || "reserved".equalsIgnoreCase(newStatus)) {
+                    EmailService.getInstance().sendReservationApproval(user, reservation);
+                } else if ("rejected".equalsIgnoreCase(newStatus)) {
+                    EmailService.getInstance().sendReservationRejection(user, reservation);
+                }
+            }
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to update reservation status: " + e.getMessage());
         }
     }
 
+    private static Time safeParseTime(String timeStr) {
+        if (timeStr == null || timeStr.isBlank()) return Time.valueOf("00:00:00");
+        String t = timeStr.trim();
+        if (t.length() == 5) t += ":00"; // e.g. "13:30" → "13:30:00"
+        return Time.valueOf(t);
+    }
+
     public static void saveReservations() {
-        System.out.println("[DATABASE] Reservations already persisted to database");
+        System.out.println("[DATABASE] Reservations already persisted to MySQL database");
     }
 
     // -------------------- UTILITY --------------------
@@ -585,21 +695,21 @@ public class DataStore {
         saveUsers();
         saveRooms();
         saveReservations();
-        System.out.println("[DATABASE] All data persisted");
+        System.out.println("[DATABASE] All data persisted to MySQL");
     }
 
     public static void reloadAll() {
         syncUsersFromDB();
         syncRoomsFromDB();
         syncReservationsFromDB();
-        System.out.println("[DATABASE] All data reloaded from database");
+        System.out.println("[DATABASE] All data reloaded from MySQL database");
     }
 
     public static void closeConnection() {
         try {
             if (connection != null && !connection.isClosed()) {
                 connection.close();
-                System.out.println("[DATABASE] Connection closed");
+                System.out.println("[DATABASE] MySQL connection closed");
             }
         } catch (SQLException e) {
             System.err.println("[DATABASE ERROR] Failed to close connection: " + e.getMessage());
