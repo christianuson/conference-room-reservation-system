@@ -257,6 +257,11 @@ public class ReservationFormController {
         Reservation reservation = new Reservation(username, roomName, date, startTime, endTime, "pending");
         DataStore.addReservation(reservation);
 
+        // Send reservation confirmation email to user
+        if (currentUser != null) {
+            util.EmailService.getInstance().sendReservationConfirmation(currentUser, reservation);
+            System.out.println("[EMAIL] Reservation confirmation triggered for: " + currentUser.getEmail());
+        }
         // Show success
         showStatus("Request submitted successfully!", Color.GREEN);
         showAlert(Alert.AlertType.INFORMATION, "Reservation Submitted",

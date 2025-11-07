@@ -236,6 +236,13 @@ public class AdminController {
         reservationTable.refresh();
         statusLabel.setTextFill(Color.GREEN);
         statusLabel.setText("Reservation approved.");
+
+        // Send approval email to user
+        User user = DataStore.getUserByEmail(sel.getUsername() + "@example.com");
+        if (user != null) {
+            util.EmailService.getInstance().sendReservationApproval(user, sel);
+            System.out.println("[EMAIL] Approval email sent for reservation of " + sel.getRoomName());
+        }
     }
 
     @FXML
@@ -250,6 +257,13 @@ public class AdminController {
         reservationTable.refresh();
         statusLabel.setTextFill(Color.ORANGE);
         statusLabel.setText("Reservation rejected.");
+
+        // Send rejection email to user
+        User user = DataStore.getUserByEmail(sel.getUsername() + "@example.com");
+        if (user != null) {
+            util.EmailService.getInstance().sendReservationRejection(user, sel);
+            System.out.println("[EMAIL] Rejection email sent for reservation of " + sel.getRoomName());
+        }
     }
 
     @FXML
@@ -462,13 +476,18 @@ public class AdminController {
 
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
-            DataStore.getUsers().remove(selected);
-            DataStore.saveUsers();
+            DataStore.deleteUser(selected);                 // perform actual DB delete
+            DataStore.reloadAll();                          // reload lists from MySQL
+            userTable.setItems(DataStore.getUsers());       // rebind updated list
+            userTable.refresh();                            // force visual refresh
             statusLabel.setTextFill(Color.ORANGE);
-            statusLabel.setText("User '" + selected.getUsername() + "' removed.");
+            statusLabel.setText("User '" + selected.getUsername() + "' removed from database.");
             simulateGitHubSync("REMOVE_USER", selected.getEmail());
+
         }
     }
+
+
 
     @FXML
     private void approveUser() {
