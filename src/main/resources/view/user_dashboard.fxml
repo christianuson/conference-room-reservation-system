@@ -65,6 +65,12 @@
                        style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1976D2;"/>
             </HBox>
 
+            <HBox spacing="10" alignment="CENTER_LEFT"
+                  style="-fx-background-color: #fdfbe3; -fx-padding: 10; -fx-border-color: #f3d021; -fx-border-width: 1; -fx-border-radius: 5; -fx-background-radius: 5;">
+            <Label text="💡 Tip: Pending means a user has a pending request for the room at this time"
+                   style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #776b1e;"/>
+            </HBox>
+
             <!-- Room Cards Container (ScrollPane) -->
             <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS"
                         style="-fx-background-color: transparent; -fx-background: transparent;">
