@@ -62,11 +62,6 @@
                                     <javafx.scene.control.cell.PropertyValueFactory property="name" />
                                 </cellValueFactory>
                             </TableColumn>
-                            <TableColumn fx:id="roomStatusColumn" text="Status" prefWidth="350">
-                                <cellValueFactory>
-                                    <javafx.scene.control.cell.PropertyValueFactory property="status" />
-                                </cellValueFactory>
-                            </TableColumn>
                         </columns>
                         <placeholder>
                             <Label text="No rooms available. Click 'Add Room' to create one."
