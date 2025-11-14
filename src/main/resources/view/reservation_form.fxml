@@ -34,7 +34,7 @@
                         style="-fx-padding: 8; -fx-font-size: 13px;"/>
         </VBox>
 
-        <!-- NEW: Start Time -->
+        <!-- Start Time -->
         <VBox spacing="5">
             <Label text="Start Time:" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
             <HBox spacing="10" alignment="CENTER_LEFT">
@@ -46,7 +46,7 @@
                    style="-fx-font-size: 11px; -fx-text-fill: #666; -fx-font-style: italic;"/>
         </VBox>
 
-        <!-- NEW: End Time -->
+        <!-- End Time -->
         <VBox spacing="5">
             <Label text="End Time:" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
             <HBox spacing="10" alignment="CENTER_LEFT">
