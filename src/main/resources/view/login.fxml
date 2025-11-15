@@ -41,7 +41,7 @@
             <VBox spacing="5">
                 <Label style="-fx-font-weight: bold;" text="Password:" />
 
-
+                <!-- Stack both fields; toggle which one is visible -->
                 <StackPane>
                     <PasswordField fx:id="passwordField"
                                    prefWidth="280"
@@ -56,18 +56,18 @@
 
                 <CheckBox fx:id="showPasswordCheck" text="Show password" />
             </VBox>
-         <HBox alignment="CENTER">
-            <children>
-      
-                  <Button fx:id="loginButton" alignment="CENTER" onAction="#handleLogin" prefHeight="35" prefWidth="280" style="-fx-background-color: #a51618; -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold; -fx-background-radius: 5;" text="Login" textFill="WHITE" />
-            </children>
-         </HBox>
-         <HBox alignment="CENTER">
-            <children>
-      
-                  <Hyperlink alignment="CENTER" onAction="#switchToRegister" style="-fx-font-size: 12px;" text="Don't have an account? Sign up" />
-            </children>
-         </HBox>
+            <HBox alignment="CENTER">
+                <children>
+
+                    <Button fx:id="loginButton" alignment="CENTER" onAction="#handleLogin" prefHeight="35" prefWidth="280" style="-fx-background-color: #a51618; -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold; -fx-background-radius: 5;" text="Login" textFill="WHITE" />
+                </children>
+            </HBox>
+            <HBox alignment="CENTER">
+                <children>
+
+                    <Hyperlink alignment="CENTER" onAction="#switchToRegister" style="-fx-font-size: 12px;" text="Don't have an account? Sign up" />
+                </children>
+            </HBox>
 
             <Label style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #333;" textAlignment="CENTER" />
         </VBox>
