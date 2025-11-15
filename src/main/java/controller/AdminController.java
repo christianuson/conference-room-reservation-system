@@ -27,28 +27,27 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.logging.Logger;
-import java.util.logging.Level;
 
 public class AdminController {
-    private static final Logger LOGGER = Logger.getLogger(AdminController.class.getName());
 
     @FXML private TableView<Room> roomTable;
     @FXML private TableColumn<Room, String> roomNameColumn;
     @FXML private TableColumn<Room, String> roomStatusColumn;
+
     @FXML private TableView<User> userTable;
     @FXML private TableColumn<User, String> userNameColumn;
     @FXML private TableColumn<User, String> userEmailColumn;
     @FXML private TableColumn<User, String> userRoleColumn;
+
     @FXML private TableView<Reservation> reservationTable;
     @FXML private TableColumn<Reservation, String> resUsernameColumn;
     @FXML private TableColumn<Reservation, String> resRoomColumn;
     @FXML private TableColumn<Reservation, String> resDateColumn;
     @FXML private TableColumn<Reservation, String> resStatusColumn;
+
     @FXML private Label statusLabel;
     @FXML private TextField roomNameField;
     @FXML private ComboBox<String> roomStatusField;
@@ -60,72 +59,132 @@ public class AdminController {
     private TimerTask refreshTask;
 
     @FXML
-    public void initialize() {
-        loadAllData();
+    public void initialize() {;
         setupRoomTable();
         setupUserTable();
         setupReservationTable();
         attachReservationContextMenu();
+
         roomTable.setItems(DataStore.getRooms());
         userTable.setItems(DataStore.getUsers());
         reservationTable.setItems(DataStore.getReservations());
+
         startAutoBackup();
         startAutoRefresh();
         setupReservationDoubleClick();
         setupLiveRoomPreview();
         highlightOverdueReservations();
         setupWindowCloseHandler();
+
         statusLabel.setText("Admin Dashboard loaded successfully");
     }
 
-    private void loadAllData() {
-        DataStore.loadUsers("src/main/resources/data/users.json");
-        DataStore.loadRooms();
-        DataStore.loadReservations();
-        LOGGER.info("[ADMIN] All data loaded from JSON files");
-    }
-
     private void setupRoomTable() {
+        roomNameColumn = new TableColumn<>("Room Name");
         roomNameColumn.setCellValueFactory(new PropertyValueFactory<>("name"));
+
+        roomStatusColumn = new TableColumn<>("Status");
         roomStatusColumn.setCellValueFactory(new PropertyValueFactory<>("status"));
+
+        if (roomTable.getColumns().isEmpty()) {
+            roomTable.getColumns().addAll(roomNameColumn, roomStatusColumn);
+        }
     }
 
     private void setupUserTable() {
+        userNameColumn = new TableColumn<>("Username");
         userNameColumn.setCellValueFactory(new PropertyValueFactory<>("username"));
+
+        userEmailColumn = new TableColumn<>("Email");
         userEmailColumn.setCellValueFactory(new PropertyValueFactory<>("email"));
+
+        userRoleColumn = new TableColumn<>("Role");
         userRoleColumn.setCellValueFactory(new PropertyValueFactory<>("role"));
+
+        if (userTable.getColumns().isEmpty()) {
+            userTable.getColumns().addAll(userNameColumn, userEmailColumn, userRoleColumn);
+        }
     }
 
     private void setupReservationTable() {
+        if (resUsernameColumn == null) {
+            resUsernameColumn = new TableColumn<>("Username");
+        }
         resUsernameColumn.setCellValueFactory(new PropertyValueFactory<>("username"));
+
+        if (resRoomColumn == null) {
+            resRoomColumn = new TableColumn<>("Room");
+        }
         resRoomColumn.setCellValueFactory(new PropertyValueFactory<>("roomName"));
+
+        if (resDateColumn == null) {
+            resDateColumn = new TableColumn<>("Date & Time");
+        }
         resDateColumn.setCellValueFactory(cd -> {
             Reservation r = cd.getValue();
-            String d = r.getDate() == null ? "" : r.getDate();
+            String d  = r.getDate() == null ? "" : r.getDate();
             String st = r.getStartTime() == null ? "" : r.getStartTime();
-            String en = r.getEndTime() == null ? "" : r.getEndTime();
+            String en = r.getEndTime()   == null ? "" : r.getEndTime();
             String combined = d;
-            if (!st.isEmpty() && !en.isEmpty()) {
-                combined += " " + st + " - " + en;
-            }
+            if (!st.isEmpty() && !en.isEmpty()) combined += " " + st + " - " + en;
             return new javafx.beans.property.SimpleStringProperty(combined.trim());
         });
 
+        if (resStatusColumn == null) {
+            resStatusColumn = new TableColumn<>("Status");
+        }
         resStatusColumn.setCellValueFactory(cd -> {
             String raw = cd.getValue().getStatus();
             String nice = (raw == null || raw.isBlank()) ? "Pending"
-                    : raw.substring(0, 1).toUpperCase() + raw.substring(1).toLowerCase();
+                    : raw.substring(0,1).toUpperCase() + raw.substring(1).toLowerCase();
             return new javafx.beans.property.SimpleStringProperty(nice);
         });
+
+        if (reservationTable.getColumns().isEmpty()) {
+            reservationTable.getColumns().addAll(
+                    resUsernameColumn, resRoomColumn, resDateColumn, resStatusColumn
+            );
+        }
     }
 
     private void attachReservationContextMenu() {
         ContextMenu menu = new ContextMenu();
+
         MenuItem approve = new MenuItem("Approve Reservation");
-        approve.setOnAction(e -> handleApproveFromContextMenu());
+        approve.setOnAction(e -> {
+            Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
+            if (sel == null) return;
+
+            if (!"Pending".equalsIgnoreCase(sel.getStatus())) {
+                statusLabel.setTextFill(Color.RED);
+                statusLabel.setText("Only 'Pending' reservations can be approved.");
+                return;
+            }
+            DataStore.updateReservationStatus(sel, "Reserved");
+            DataStore.reloadAll();
+            reservationTable.refresh();
+            roomTable.refresh();
+            statusLabel.setTextFill(Color.GREEN);
+            statusLabel.setText("Reservation approved.");
+        });
 
         MenuItem reject = new MenuItem("Reject / Cancel Reservation");
-        reject.setOnAction(e -> handleRejectFromContextMenu());
+        reject.setOnAction(e -> {
+            Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
+            if (sel == null) return;
+
+            if (!"Pending".equalsIgnoreCase(sel.getStatus())) {
+                statusLabel.setTextFill(Color.RED);
+                statusLabel.setText("Only 'Pending' reservations can be rejected.");
+                return;
+            }
+            DataStore.updateReservationStatus(sel, "Rejected");
+            DataStore.reloadAll();
+            reservationTable.refresh();
+            roomTable.refresh();
+            statusLabel.setTextFill(Color.ORANGE);
+            statusLabel.setText("Reservation rejected.");
+        });
 
         menu.getItems().addAll(approve, reject);
 
@@ -142,43 +201,9 @@ public class AdminController {
         });
     }
 
-    private void handleApproveFromContextMenu() {
-        Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
-        if (sel == null) return;
-
-        if (!"Pending".equalsIgnoreCase(sel.getStatus())) {
-            statusLabel.setTextFill(Color.RED);
-            statusLabel.setText("Only 'Pending' reservations can be approved.");
-            return;
-        }
-        DataStore.updateReservationStatus(sel, "Reserved");
-        DataStore.reloadAll();
-        reservationTable.refresh();
-        roomTable.refresh();
-        statusLabel.setTextFill(Color.GREEN);
-        statusLabel.setText("Reservation approved.");
-    }
-
-    private void handleRejectFromContextMenu() {
-        Reservation sel = reservationTable.getSelectionModel().getSelectedItem();
-        if (sel == null) return;
-
-        if (!"Pending".equalsIgnoreCase(sel.getStatus())) {
-            statusLabel.setTextFill(Color.RED);
-            statusLabel.setText("Only 'Pending' reservations can be rejected.");
-            return;
-        }
-        DataStore.updateReservationStatus(sel, "Rejected");
-        DataStore.reloadAll();
-        reservationTable.refresh();
-        roomTable.refresh();
-        statusLabel.setTextFill(Color.ORANGE);
-        statusLabel.setText("Reservation rejected.");
-    }
-
     private ComboBox<String> buildStatusBox(String initial) {
         ComboBox<String> box = new ComboBox<>(
-                FXCollections.observableArrayList(Arrays.asList("Available", "Reserved", "Pending"))
+                FXCollections.observableArrayList("Available", "Reserved", "Pending")
         );
         box.setEditable(false);
         box.setValue(initial != null ? initial : "Available");
@@ -198,15 +223,17 @@ public class AdminController {
             statusLabel.setText("Only 'Pending' reservations can be approved.");
             return;
         }
+
         DataStore.updateReservationStatus(sel, "approved");
         reservationTable.refresh();
         statusLabel.setTextFill(Color.GREEN);
         statusLabel.setText("Reservation approved.");
 
+        // Send approval email to user
         User user = DataStore.getUserByEmail(sel.getUsername() + "@example.com");
         if (user != null) {
             util.EmailService.getInstance().sendReservationApproval(user, sel);
-            LOGGER.info("[EMAIL] Approval email sent for reservation of " + sel.getRoomName());
+            System.out.println("[EMAIL] Approval email sent for reservation of " + sel.getRoomName());
         }
     }
 
@@ -223,10 +250,11 @@ public class AdminController {
         statusLabel.setTextFill(Color.ORANGE);
         statusLabel.setText("Reservation rejected.");
 
+        // Send rejection email to user
         User user = DataStore.getUserByEmail(sel.getUsername() + "@example.com");
         if (user != null) {
             util.EmailService.getInstance().sendReservationRejection(user, sel);
-            LOGGER.info("[EMAIL] Rejection email sent for reservation of " + sel.getRoomName());
+            System.out.println("[EMAIL] Rejection email sent for reservation of " + sel.getRoomName());
         }
     }
 
@@ -235,6 +263,7 @@ public class AdminController {
         Dialog<Room> dialog = new Dialog<>();
         dialog.setTitle("Add New Room");
         dialog.setHeaderText("Enter room details");
+
         ButtonType addButtonType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
 
@@ -247,18 +276,30 @@ public class AdminController {
         nameField.setPromptText("Room Name");
         ComboBox<String> statusBox = buildStatusBox("Available");
 
+        // NEW: Image selection
         Label imageLabel = new Label("No image selected");
         imageLabel.setStyle("-fx-text-fill: #666; -fx-font-style: italic;");
         final String[] selectedImagePath = {null};
 
-        Button browseButton = createImageBrowseButton(imageLabel, selectedImagePath, dialog);
+        Button browseButton = new Button("Browse Image...");
+        browseButton.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Select Room Image");
+            fileChooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp")
+            );
+
+            File selectedFile = fileChooser.showOpenDialog(dialog.getOwner());
+            if (selectedFile != null) {
+                selectedImagePath[0] = selectedFile.getAbsolutePath();
+                imageLabel.setText(selectedFile.getName());
+                imageLabel.setStyle("-fx-text-fill: #4CAF50; -fx-font-weight: bold;");
+            }
+        });
 
         nameField.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ENTER) {
-                Button addButton = (Button) dialog.getDialogPane().lookupButton(addButtonType);
-                if (addButton != null) {
-                    addButton.fire();
-                }
+                ((Button) dialog.getDialogPane().lookupButton(addButtonType)).fire();
             }
         });
 
@@ -289,24 +330,6 @@ public class AdminController {
         });
     }
 
-    private Button createImageBrowseButton(Label imageLabel, String[] selectedImagePath, Dialog<?> dialog) {
-        Button browseButton = new Button("Browse Image...");
-        browseButton.setOnAction(e -> {
-            FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Select Room Image");
-            fileChooser.getExtensionFilters().addAll(
-                    new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp")
-            );
-            File selectedFile = fileChooser.showOpenDialog(dialog.getOwner());
-            if (selectedFile != null) {
-                selectedImagePath[0] = selectedFile.getAbsolutePath();
-                imageLabel.setText(selectedFile.getName());
-                imageLabel.setStyle("-fx-text-fill: #4CAF50; -fx-font-weight: bold;");
-            }
-        });
-        return browseButton;
-    }
-
     @FXML
     private void editRoom() {
         Room selected = roomTable.getSelectionModel().getSelectedItem();
@@ -319,6 +342,7 @@ public class AdminController {
         Dialog<Room> dialog = new Dialog<>();
         dialog.setTitle("Edit Room");
         dialog.setHeaderText("Edit room details for: " + selected.getName());
+
         ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
 
@@ -330,6 +354,7 @@ public class AdminController {
         TextField nameField = new TextField(selected.getName());
         ComboBox<String> statusBox = buildStatusBox(selected.getStatus());
 
+        // NEW: Image selection for editing
         Label imageLabel = new Label(selected.getImagePath() != null ?
                 new File(selected.getImagePath()).getName() : "No image selected");
         imageLabel.setStyle(selected.getImagePath() != null ?
@@ -337,7 +362,21 @@ public class AdminController {
                 "-fx-text-fill: #666; -fx-font-style: italic;");
         final String[] selectedImagePath = {selected.getImagePath()};
 
-        Button browseButton = createImageBrowseButton(imageLabel, selectedImagePath, dialog);
+        Button browseButton = new Button("Change Image...");
+        browseButton.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Select Room Image");
+            fileChooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp")
+            );
+
+            File selectedFile = fileChooser.showOpenDialog(dialog.getOwner());
+            if (selectedFile != null) {
+                selectedImagePath[0] = selectedFile.getAbsolutePath();
+                imageLabel.setText(selectedFile.getName());
+                imageLabel.setStyle("-fx-text-fill: #4CAF50; -fx-font-weight: bold;");
+            }
+        });
 
         Button clearImageButton = new Button("Clear Image");
         clearImageButton.setOnAction(e -> {
@@ -350,10 +389,7 @@ public class AdminController {
 
         nameField.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ENTER) {
-                Button saveButton = (Button) dialog.getDialogPane().lookupButton(saveButtonType);
-                if (saveButton != null) {
-                    saveButton.fire();
-                }
+                ((Button) dialog.getDialogPane().lookupButton(saveButtonType)).fire();
             }
         });
 
@@ -418,6 +454,7 @@ public class AdminController {
             statusLabel.setText("No user selected for removal.");
             return;
         }
+
         if ("admin".equalsIgnoreCase(selected.getRole())) {
             statusLabel.setTextFill(Color.RED);
             statusLabel.setText("Cannot remove admin users!");
@@ -431,15 +468,18 @@ public class AdminController {
 
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
-            DataStore.deleteUser(selected);
-            DataStore.reloadAll();
-            userTable.setItems(DataStore.getUsers());
-            userTable.refresh();
+            DataStore.deleteUser(selected);                 // perform actual DB delete
+            DataStore.reloadAll();                          // reload lists from MySQL
+            userTable.setItems(DataStore.getUsers());       // rebind updated list
+            userTable.refresh();                            // force visual refresh
             statusLabel.setTextFill(Color.ORANGE);
             statusLabel.setText("User '" + selected.getUsername() + "' removed from database.");
             simulateGitHubSync("REMOVE_USER", selected.getEmail());
+
         }
     }
+
+
 
     @FXML
     private void approveUser() {
@@ -461,7 +501,8 @@ public class AdminController {
         reservationTable.setRowFactory(tv -> {
             TableRow<Reservation> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
-                if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
+                if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY
+                        && event.getClickCount() == 2) {
                     Reservation clickedReservation = row.getItem();
                     openReservationDetailWindow(clickedReservation);
                 }
@@ -501,7 +542,7 @@ public class AdminController {
         detailStage.setScene(scene);
         detailStage.show();
 
-        LOGGER.info("[ADMIN] Opened detail window for reservation: " +
+        System.out.println("[ADMIN] Opened detail window for reservation: " +
                 reservation.getUsername() + " - " + reservation.getRoomName());
     }
 
@@ -512,12 +553,9 @@ public class AdminController {
         if (roomStatusField != null) {
             roomStatusField.valueProperty().addListener((obs, o, n) -> updateRoomPreview());
             if (roomStatusField.getItems().isEmpty()) {
-                roomStatusField.setItems(FXCollections.observableArrayList(
-                        Arrays.asList("Available", "Reserved", "Pending")));
+                roomStatusField.setItems(FXCollections.observableArrayList("Available","Reserved","Pending"));
             }
-            if (roomStatusField.getValue() == null) {
-                roomStatusField.setValue("Available");
-            }
+            if (roomStatusField.getValue() == null) roomStatusField.setValue("Available");
         }
     }
 
@@ -536,6 +574,7 @@ public class AdminController {
             @Override
             protected void updateItem(Reservation item, boolean empty) {
                 super.updateItem(item, empty);
+
                 if (item == null || empty) {
                     setStyle("");
                 } else {
@@ -553,10 +592,10 @@ public class AdminController {
         backupTask = new TimerTask() {
             public void run() {
                 DataStore.saveAll();
-                Platform.runLater(() ->
-                        LOGGER.info("[AUTO-BACKUP] Complete at " +
-                                LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")))
-                );
+                Platform.runLater(() -> {
+                    System.out.println("[AUTO-BACKUP] Complete at " +
+                            LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+                });
             }
         };
         backupTimer.schedule(backupTask, 5000, 30000);
@@ -570,7 +609,7 @@ public class AdminController {
                     roomTable.refresh();
                     userTable.refresh();
                     reservationTable.refresh();
-                    LOGGER.info("[AUTO-REFRESH] Dashboard data refreshed at " +
+                    System.out.println("[AUTO-REFRESH] Dashboard data refreshed at " +
                             LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
                 });
             }
@@ -583,14 +622,13 @@ public class AdminController {
             try {
                 Thread.sleep(1000);
                 Platform.runLater(() -> {
-                    LOGGER.info("[GITHUB SYNC] POST " + action + ": " + data);
-                    LOGGER.info("[GITHUB SYNC] Status: Success (200 OK)");
-                    LOGGER.info("[GITHUB SYNC] Timestamp: " +
+                    System.out.println("[GITHUB SYNC] POST " + action + ": " + data);
+                    System.out.println("[GITHUB SYNC] Status: Success (200 OK)");
+                    System.out.println("[GITHUB SYNC] Timestamp: " +
                             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
                 });
             } catch (InterruptedException e) {
-                LOGGER.log(Level.WARNING, "[GITHUB SYNC] Thread interrupted", e);
-                Thread.currentThread().interrupt();
+                e.printStackTrace();
             }
         }).start();
     }
@@ -600,33 +638,33 @@ public class AdminController {
         try {
             String filename = "report_" +
                     LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".txt";
+            FileWriter writer = new FileWriter(filename);
 
-            try (FileWriter writer = new FileWriter(filename)) {
-                writer.write("===== ADMIN DASHBOARD REPORT =====\n");
-                writer.write("Generated: " + LocalDateTime.now() + "\n\n");
+            writer.write("===== ADMIN DASHBOARD REPORT =====\n");
+            writer.write("Generated: " + LocalDateTime.now() + "\n\n");
 
-                writer.write("--- ROOMS ---\n");
-                for (Room room : DataStore.getRooms()) {
-                    writer.write("Room: " + room.getName() + " | Status: " + room.getStatus() + "\n");
-                }
-
-                writer.write("\n--- USERS ---\n");
-                for (User user : DataStore.getUsers()) {
-                    writer.write("User: " + user.getUsername() + " | Email: " +
-                            user.getEmail() + " | Role: " + user.getRole() + "\n");
-                }
-
-                writer.write("\n--- RESERVATIONS ---\n");
-                for (Reservation res : DataStore.getReservations()) {
-                    writer.write("User: " + res.getUsername() + " | Room: " +
-                            res.getRoomName() + " | Date: " + res.getDate() + "\n");
-                }
+            writer.write("--- ROOMS ---\n");
+            for (Room room : DataStore.getRooms()) {
+                writer.write("Room: " + room.getName() + " | Status: " + room.getStatus() + "\n");
             }
+
+            writer.write("\n--- USERS ---\n");
+            for (User user : DataStore.getUsers()) {
+                writer.write("User: " + user.getUsername() + " | Email: " +
+                        user.getEmail() + " | Role: " + user.getRole() + "\n");
+            }
+
+            writer.write("\n--- RESERVATIONS ---\n");
+            for (Reservation res : DataStore.getReservations()) {
+                writer.write("User: " + res.getUsername() + " | Room: " +
+                        res.getRoomName() + " | Date: " + res.getDate() + "\n");
+            }
+
+            writer.close();
 
             statusLabel.setTextFill(Color.GREEN);
             statusLabel.setText("Text report generated: " + filename);
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Error generating text report", e);
             statusLabel.setTextFill(Color.RED);
             statusLabel.setText("Error generating report: " + e.getMessage());
         }
@@ -637,20 +675,20 @@ public class AdminController {
         try {
             String filename = "report_" +
                     LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".json";
+            FileWriter writer = new FileWriter(filename);
 
-            try (FileWriter writer = new FileWriter(filename)) {
-                writer.write("{\n");
-                writer.write("  \"generated\": \"" + LocalDateTime.now() + "\",\n");
-                writer.write("  \"total_rooms\": " + DataStore.getRooms().size() + ",\n");
-                writer.write("  \"total_users\": " + DataStore.getUsers().size() + ",\n");
-                writer.write("  \"total_reservations\": " + DataStore.getReservations().size() + "\n");
-                writer.write("}\n");
-            }
+            writer.write("{\n");
+            writer.write("  \"generated\": \"" + LocalDateTime.now() + "\",\n");
+            writer.write("  \"total_rooms\": " + DataStore.getRooms().size() + ",\n");
+            writer.write("  \"total_users\": " + DataStore.getUsers().size() + ",\n");
+            writer.write("  \"total_reservations\": " + DataStore.getReservations().size() + "\n");
+            writer.write("}\n");
+
+            writer.close();
 
             statusLabel.setTextFill(Color.GREEN);
             statusLabel.setText("JSON report generated: " + filename);
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Error generating JSON report", e);
             statusLabel.setTextFill(Color.RED);
             statusLabel.setText("Error generating report: " + e.getMessage());
         }
@@ -669,20 +707,20 @@ public class AdminController {
         try {
             String logFile = "admin_log_" +
                     LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".txt";
-
-            try (FileWriter writer = new FileWriter(logFile, true)) {
-                writer.write("[" + LocalDateTime.now() + "] Admin session ended\n");
-            }
-            LOGGER.info("[ADMIN] Session log saved: " + logFile);
+            FileWriter writer = new FileWriter(logFile, true);
+            writer.write("[" + LocalDateTime.now() + "] Admin session ended\n");
+            writer.close();
+            System.out.println("[ADMIN] Session log saved: " + logFile);
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Error saving admin log", e);
+            e.printStackTrace();
         }
 
         if (backupTask != null) backupTask.cancel();
         if (refreshTask != null) refreshTask.cancel();
         backupTimer.cancel();
         refreshTimer.cancel();
-        LOGGER.info("[ADMIN] Dashboard closed, all data saved");
+
+        System.out.println("[ADMIN] Dashboard closed, all data saved");
     }
 
     @FXML
@@ -696,6 +734,7 @@ public class AdminController {
         if (result.isPresent() && result.get() == ButtonType.OK) {
             try {
                 DataStore.saveAll();
+
                 if (backupTask != null) backupTask.cancel();
                 if (refreshTask != null) refreshTask.cancel();
                 backupTimer.cancel();
@@ -704,16 +743,17 @@ public class AdminController {
                 javafx.fxml.FXMLLoader loader =
                         new javafx.fxml.FXMLLoader(getClass().getResource("/view/login.fxml"));
                 javafx.scene.Parent loginRoot = loader.load();
+
                 Stage stage = (Stage) statusLabel.getScene().getWindow();
                 stage.setTitle("Login");
-                stage.setWidth(540);
-                stage.setHeight(570);
+                stage.setWidth(540); stage.setHeight(570);
                 stage.setScene(new javafx.scene.Scene(loginRoot));
                 stage.centerOnScreen();
                 stage.show();
+
             } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Failed to return to login", e);
-                statusLabel.setTextFill(Color.RED);
+                e.printStackTrace();
+                statusLabel.setTextFill(javafx.scene.paint.Color.RED);
                 statusLabel.setText("Failed to return to login: " + e.getMessage());
             }
         }
